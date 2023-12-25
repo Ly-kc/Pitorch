@@ -1,0 +1,4 @@
+/data
+/lib/*.egg-info
+/lib/build
+/lib/*.so
