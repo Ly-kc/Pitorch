@@ -7,8 +7,8 @@
 因此你可以引入任何的库来帮你进行数据处理和读取
 理论上我们也不需要依赖lab5的内容，如果你需要的话，你可以将lab5对应代码copy到对应位置
 """
-from task0_autodiff import *
-from task0_operators import *
+from finial_project.pitorch.autodiff import *
+from finial_project.pitorch.Pisor import *
 import numpy as np
 
 import torch

@@ -5,6 +5,9 @@
 """
 import numpy as np
 from typing import List, Optional, Tuple, Union
+import torch
+
+from mytensor import Tensor as raw_pisor
 
 TENSOR_COUNTER = 0
 
@@ -12,7 +15,7 @@ class Op:
     def __call__(self, *args):
         raise NotImplementedError()
 
-    def compute(self, *args: Tuple[np.ndarray]):
+    def compute(self, *args: Tuple[raw_pisor]):
         """
         前向过程的虚函数
         """
@@ -43,7 +46,7 @@ class Op:
 class Value:
     op: Optional[Op]
     inputs: List["Value"]
-    cached_data: np.ndarray
+    cached_data: raw_pisor
     requires_grad: bool
 
     def realize_cached_data(self):

@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 sources = ['pybind.cpp','cpu_func.cu','gpu_func.cu','Tensor.cu','tensor_func.cu']
 
 setup(
@@ -15,7 +15,7 @@ setup(
     install_requires=['torch'],
     python_requires='>=3.8',
     license='MIT',
-    ext_modules=[CUDAExtension(name='raw_tensor',sources=sources,) ],
+    ext_modules=[CUDAExtension(name='mytensor',sources=sources,) ],
     cmdclass={'build_ext': BuildExtension },
     classifiers=['License :: OSI Approved :: MIT License', ],
     )

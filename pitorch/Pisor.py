@@ -4,10 +4,19 @@
 """
 import numpy as np
 from typing import List, Optional, Tuple, Union
-from device import cpu, Device
 from basic_operator import Op, Value
-from task0_autodiff import back_propgation
+from mytensor import Tensor as raw_pisor
+from mytensor import pEwiseAdd,pAddScalar,pEwiseMul,pMulScalar,pEwiseDiv,pDivScalar,pEwiseSub,pSubScalar
+from mytensor import ReLU_forward, ReLU_backward
+from autodiff import back_propgation
 
+
+'''
+Tensor(最终要换成Pisor)内含raw_pisor,并在必要时转为numpy
+cace_data:raw_pisor
+dtype暂时废弃
+divice完全存储在raw_pisor中,Tensor不设self.device
+'''
 class Tensor(Value):
     grad: "Tensor"
 
@@ -17,7 +26,7 @@ class Tensor(Value):
         inputs,
         *,
         num_outputs: int = 1,
-        cached_data: List[object] = None,
+        cached_data: raw_pisor = None,
         requires_grad: Optional[bool] = None
     ):
         self.dirty = False   #是否经历了inplace操作，如果是则不能用来反向传播
@@ -35,7 +44,7 @@ class Tensor(Value):
         self,
         array,
         *,
-        device: Optional[Device] = None,
+        device: Optional[str] = None,
         dtype=None,
         requires_grad=True,
         **kwargs
@@ -46,15 +55,24 @@ class Tensor(Value):
             if dtype is None:
                 dtype = array.dtype
             if device == array.device and dtype == array.dtype:
-                cached_data = array.realize_cached_data()
+                #若device和dtype相同则直接引用相同raw_pisor
+                cached_data = array.realize_cached_data()  
             else:
-                cached_data = Tensor._array_from_numpy(
-                    array.numpy(), device=device, dtype=dtype
+                #否则深拷贝生成raw_pisor
+                cached_data = Tensor._raw_pisor_from_numpy(
+                    array.numpy(), device=device, dtype=dtype  
                 )
+        elif isinstance(array, np.ndarray):
+            if device is None:
+                device = 'cpu'
+            if dtype is None:
+                dtype = array.dtype
+            cached_data = Tensor._raw_pisor_from_numpy(array, device=device, dtype=dtype)
         else:
-            device = device if device else cpu()
-            cached_data = Tensor._array_from_numpy(array, device=device, dtype=dtype)
-
+            if device is None:
+                device = 'cpu'
+            cached_data = Tensor._raw_pisor_from_array(array, device=device, dtype=dtype)       
+            
         self._init(
             None,
             [],
@@ -63,11 +81,27 @@ class Tensor(Value):
         )
 
     @staticmethod
-    def _array_from_numpy(numpy_array, device, dtype):
-        return np.array(numpy_array, dtype=dtype)
+    def _raw_pisor_from_array(array, device='cpu', dtype=np.float32):
+        #array maybe list or tuple
+        if(isinstance(array, list) or isinstance(array, tuple)):
+            array = np.array(array)
+        else:
+            array = np.array([array])
+        return raw_pisor(np.array(array), device)
+
+    @staticmethod
+    def _raw_pisor_from_numpy(numpy_array, device='cpu', dtype=np.float32):
+        if(numpy_array.shape == ()):
+            numpy_array =numpy_array.reshape(1)
+        return raw_pisor(array=numpy_array, device=device)
 
     @staticmethod
     def make_from_op(op: Op, inputs: List["Value"]):
+        if(inputs is not None):
+            device = inputs[0].device
+            for input in inputs:
+                if(input.device != device):
+                    raise Exception('parameters not on single device!!!!, please use cpu() or cuda() to change device')
         tensor = Tensor.__new__(Tensor)
         tensor._init(op, inputs)
         if not tensor.requires_grad:
@@ -76,8 +110,16 @@ class Tensor(Value):
         return tensor
 
     @staticmethod
-    def make_const(data, requires_grad=False):
+    def make_const(data, requires_grad=False, device='cpu'):
         tensor = Tensor.__new__(Tensor)
+        if(isinstance(data, np.ndarray)):
+            data = raw_pisor(data, device=device)
+        elif(isinstance(data, list) or isinstance(data, tuple)):
+            data = raw_pisor(np.array(data), device=device)
+        elif(isinstance(data, Tensor)):
+            data = data.realize_cached_data()
+        elif(not isinstance(data, raw_pisor)):
+            raise Exception('make_const data type error')
         tensor._init(
             None,
             [],
@@ -94,15 +136,19 @@ class Tensor(Value):
 
     @data.setter
     def data(self, value):
-        assert isinstance(value, Tensor)
-        assert value.dtype == self.dtype, "%s %s" % (
-            value.dtype,
-            self.dtype,
-        )
-        self.cached_data = value.realize_cached_data()
+        if(isinstance(value, Tensor)):
+            self.cached_data = value.realize_cached_data()
+        elif(isinstance(value, np.ndarray)):
+            self.cached_data = raw_pisor(value)
+        elif(isinstance(value, raw_pisor)):
+            self.cached_data = value
+        else:
+            raise Exception('data type error')
+        self.dirty = True
+        
 
-    def detach(self):
-        return Tensor.make_const(self.realize_cached_data())
+    def detach(self,requies_grad=False):
+        return Tensor.make_const(self.realize_cached_data(),requires_grad=requies_grad)
 
     @property
     def shape(self):
@@ -110,29 +156,40 @@ class Tensor(Value):
 
     @property
     def dtype(self):
-        return self.realize_cached_data().dtype
+        return self.realize_cached_data().dtype()
 
     @property
     def device(self):
-        return cpu()
+        return self.cached_data.device
 
+    def _cpu(self):
+        self.cached_data._cpu()
+            
+    def _cuda(self):
+        self.cached_data._gpu()
+    
+    def cpu(self):
+        return self.detach(requies_grad=self.requires_grad).cpu()
+    
+    def cuda(self):
+        return self.detach(requies_grad=self.requires_grad).cuda()
+        
     def partial_gradients(self):
         #输入与返回值均为Tensor类
         return self.op.gradient_as_tuple(self.grad, self)
 
     def backward(self, out_grad=None):
-        back_propgation(self)
+        back_propgation(self,out_grad)
         
 
     def __repr__(self):
-        return "Tensor(" + str(self.realize_cached_data()) + ")"
+        return "Tensor(" + str(self.numpy()) + ")"
 
     def __str__(self):
-        return self.realize_cached_data().__str__()
+        return self.numpy().__str__()
 
     def numpy(self):
-        data = self.realize_cached_data()
-
+        data = self.realize_cached_data().numpy()
         return data
 
 
@@ -207,9 +264,15 @@ class TensorOp(Op):
         raise not NotImplementedError()
 
 class EWiseAdd(TensorOp):
-    def compute(self, a: np.ndarray, b: np.ndarray):
-        return a + b
-
+    def compute(self, a: raw_pisor, b: raw_pisor):
+        # if(a.device == 'cpu' and b.device == 'cpu'):
+        #     return raw_pisor(a.numpy() + b.numpy(), device=a.device)
+        # elif(a.device == 'gpu' and b.device == 'gpu'):
+        #     return a + b
+        # else:
+        #     raise Exception('add device error')
+        return pEwiseAdd(a,b) 
+        
     def gradient(self, out_grad: Tensor, node: Tensor):
         return out_grad, out_grad
 
@@ -222,8 +285,9 @@ class AddScalar(TensorOp):
     def __init__(self, scalar):
         self.scalar = scalar
 
-    def compute(self, a: np.ndarray):
-        return a + self.scalar
+    def compute(self, a: raw_pisor):
+        # return raw_pisor(a.numpy() + self.scalar)
+        return pAddScalar(a, self.scalar)
 
     def gradient(self, out_grad: Tensor, node: Tensor):
         return out_grad
@@ -234,8 +298,9 @@ def add_scalar(a, scalar):
 
 
 class EWiseMul(TensorOp):
-    def compute(self, a: np.ndarray, b: np.ndarray):
-        return a * b
+    def compute(self, a: raw_pisor, b: raw_pisor):
+        # return raw_pisor(a.numpy() * b.numpy())
+        return pEwiseMul(a,b)
 
     def gradient(self, out_grad: Tensor, node: Tensor):
         lhs, rhs = node.inputs
@@ -250,8 +315,9 @@ class MulScalar(TensorOp):
     def __init__(self, scalar):
         self.scalar = scalar
 
-    def compute(self, a: np.ndarray):
-        return a * self.scalar
+    def compute(self, a: raw_pisor):
+        # return raw_pisor(a.numpy() * self.scalar)
+        return pMulScalar(a, self.scalar)
 
     def gradient(self, out_grad: Tensor, node: Tensor):
         return (out_grad * self.scalar,)
@@ -267,14 +333,17 @@ class PowerScalar(TensorOp):
     def __init__(self, scalar: int):
         self.scalar = scalar
 
-    def compute(self, a: np.ndarray) -> np.ndarray:
-        return a ** self.scalar
+    def compute(self, a: raw_pisor) -> raw_pisor:
+        if(a.device == 'cpu'):
+            return raw_pisor(a.numpy() ** self.scalar)
+        else:
+            raise NotImplementedError()
         
     def gradient(self, out_grad, node):
         if(self.scalar == 0):
             return out_grad * 0
         else:
-            return out_grad * self.scalar * PowerScalar(self.scalar - 1)(node)
+            return out_grad * self.scalar * PowerScalar(self.scalar - 1)(node.inputs[0])
         
 
 
@@ -285,18 +354,16 @@ def power_scalar(a, scalar):
 class EWisePow(TensorOp):
     """逐点乘方"""
 
-    def compute(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-        return a**b
+    def compute(self, a: raw_pisor, b: raw_pisor) -> np.ndarray:
+        if(a.device == 'cpu' and b.device == 'cpu'):
+            return raw_pisor(a.numpy()**b.numpy())
+        else:
+            raise NotImplementedError()
 
     def gradient(self, out_grad, node):
-        if not isinstance(node.inputs[0], np.ndarray) or not isinstance(
-            node.inputs[1], np.ndarray
-        ):
-            raise ValueError("Both inputs must be tensors (np.ndarray).")
-
         a, b = node.inputs[0], node.inputs[1]
         grad_a = out_grad * b * (a ** (b - 1))
-        grad_b = out_grad * (a**b) * np.log(a.data)
+        grad_b = out_grad * (a**b) * log(a)
         return grad_a, grad_b
 
 def power(a, b):
@@ -307,12 +374,13 @@ class EWiseDiv(TensorOp):
     """逐点相除"""
 
     def compute(self, a, b):
-        return np.divide(a, b)
+        # return raw_pisor(np.divide(a.numpy(), b.numpy()))
+        return pEwiseDiv(a,b)
         
 
     def gradient(self, out_grad, node):
         lhs, rhs = node.inputs
-        return out_grad / rhs, -out_grad * lhs / (rhs ** 2)
+        return out_grad / rhs, -out_grad * lhs / (rhs*rhs)
         
 
 
@@ -327,7 +395,8 @@ class DivScalar(TensorOp):
     def compute(self, a):
         if(self.scalar == 0):
             raise ValueError("Divided by zero!")
-        return a / self.scalar
+        # return raw_pisor(a.numpy() / self.scalar)
+        return pDivScalar(a, self.scalar)
         
 
     def gradient(self, out_grad, node):
@@ -347,14 +416,18 @@ class Transpose(TensorOp):
     def compute(self, a):
         #助教的意思是axes是一个长为2的tuple，指示着交换哪两个轴？
         #重新翻译为np.transpose的axes参数,即长度为n-1
-        new_axes = list(range(len(a.shape)))
+        if(a.device == 'cpu'):
+            new_axes = list(range(len(a.shape)))
 
-        if(self.axes is not None):
-            new_axes[self.axes[0]], new_axes[self.axes[1]] = new_axes[self.axes[1]], new_axes[self.axes[0]]
+            if(self.axes is not None):
+                new_axes[self.axes[0]], new_axes[self.axes[1]] = new_axes[self.axes[1]], new_axes[self.axes[0]]
+            else:
+                new_axes[-1], new_axes[-2] = new_axes[-2], new_axes[-1]
+            b = np.transpose(a.numpy(), new_axes)
+            b = np.ascontiguousarray(b)
+            return raw_pisor(b)
         else:
-            new_axes[-1], new_axes[-2] = new_axes[-2], new_axes[-1]
-        
-        return np.transpose(a, new_axes)
+            raise NotImplementedError()
     
     def gradient(self, out_grad, node):
         #这里axes为None以及为（x,y）的情况都考虑了
@@ -380,7 +453,7 @@ class Reshape(TensorOp):
         self.shape = shape
 
     def compute(self, a):
-        return a.reshape(*self.shape)
+        return a.reshape(self.shape)
         
 
     def gradient(self, out_grad, node):
@@ -399,23 +472,13 @@ class BroadcastTo(TensorOp):
     #numpy不支持(3,4)->(6,4)  
     #在此暂时只实现(3,1,4)->(8,3,3,4)的情况
     def compute(self, a):
-        res = np.zeros(self.shape)
-        res += a
-        return res
-        
-    # def gradient(self, out_grad, node):
-    #     origin_shape = node.inputs[0].shape
-    #     extra_axis_num = len(self.shape) - len(origin_shape)
-    #     compress_axis = list(range(extra_axis_num))
-    #     for i in range(len(origin_shape)):
-    #         if(origin_shape[i] != self.shape[i + extra_axis_num]):
-    #             compress_axis.append(i + extra_axis_num)   
-        
-    #     res_numpy = out_grad.numpy()
-    #     res_numpy = np.sum(res_numpy, axis=tuple(compress_axis),keepdims=True)
-        
-        
-    #     return Tensor(res_numpy,device=node.device,requires_grad=node.requires_grad)
+        if(a.device == 'cpu'):
+            res = np.zeros(self.shape)
+            res += a.numpy()
+            return raw_pisor(res)
+        else:
+            raise NotImplementedError()
+                
     def gradient(self, out_grad, node):
         origin_shape = node.inputs[0].shape
         extra_axis_num = len(self.shape) - len(origin_shape)
@@ -440,7 +503,10 @@ class Summation(TensorOp):
         self.keep_dims = keep_dims
 
     def compute(self, a):
-        return np.sum(a, axis=self.axes,keepdims=self.keep_dims)
+        if(a.device == 'cpu'):
+            return raw_pisor(np.sum(a.numpy(), axis=self.axes,keepdims=self.keep_dims))
+        else:
+            raise NotImplementedError()
         
     def gradient(self, out_grad, node):
         #烦人的零维Tensor
@@ -471,9 +537,11 @@ def summation(a, axes=None):
 
 class MatMul(TensorOp):
     def compute(self, a, b):
-        return np.matmul(a, b)
+        if(a.device == 'cpu'):
+            return raw_pisor(np.matmul(a.numpy(), b.numpy()))
+        else:
+            raise NotImplementedError()
         
-
     def gradient(self, out_grad, node):
         lhs, rhs = node.inputs
         return out_grad @ transpose(rhs), transpose(lhs) @ out_grad
@@ -486,7 +554,7 @@ def matmul(a, b):
 
 class Negate(TensorOp):
     def compute(self, a):
-        return -a
+        return pMulScalar(a, -1)
         
 
     def gradient(self, out_grad, node):
@@ -500,9 +568,11 @@ def negate(a):
 
 class Log(TensorOp):
     def compute(self, a):
-        return np.log(a)
-        
-
+        if(a.device == 'cpu'):
+            return raw_pisor(np.log(a.numpy()))
+        else:
+            raise NotImplementedError()
+                
     def gradient(self, out_grad, node):
         return out_grad/node.inputs[0]
         
@@ -514,9 +584,11 @@ def log(a):
 
 class Exp(TensorOp):
     def compute(self, a):
-        return np.exp(a)
+        if(a.device == 'cpu'):
+            return raw_pisor(np.exp(a.numpy()))        
+        else:
+            raise NotImplementedError()
         
-
     def gradient(self, out_grad, node):
         return out_grad * Exp()(node)
         
@@ -528,16 +600,16 @@ def exp(a):
 
 class ReLU(TensorOp):
     def compute(self, a):
-        return np.maximum(a, 0)
+        # return raw_pisor(np.maximum(a.numpy(), 0))
+        return ReLU_forward(a)
         
     def gradient(self, out_grad, node):
-        #生成一个mask
-        mask = node.inputs[0].numpy() > 0
-        mask = Tensor.make_const(mask) #不需要关于mask的梯度
-        return out_grad * mask
+        # #生成一个mask
+        # mask = node.inputs[0].numpy() > 0
+        # mask = Tensor.make_const(mask) #不需要关于mask的梯度
+        # return out_grad * mask
+        return ReLU_backward(node.inputs[0], out_grad)
         
-
-
 def relu(a):
     return ReLU()(a)
 
@@ -549,8 +621,11 @@ class Index(TensorOp):
     
     def compute(self, a):
     #(...,n,c)->(...,n,)
-        return a[...,self.index]
-
+        if(a.device == 'cpu'):
+            return raw_pisor(a.numpy()[...,self.index])
+        else:
+            raise NotImplementedError()
+        
     def gradient(self, out_grad, node):
     #(...,n,)->(...,n,c)
         mask = np.zeros_like(node.inputs[0].numpy())
@@ -562,18 +637,24 @@ class Index(TensorOp):
 def op_index(a, index):
     return Index(index)(a)
 
+
+
 class Assign_mask(TensorOp):
     def __init__(self, mask:np.ndarray):
         self.mask = mask
     
     def compute(self, a):
-        return a * self.mask
-    
+        # return raw_pisor(a.numpy() * self.mask)
+        mask = raw_pisor(self.mask, device = a.device)
+        return pEwiseMul(a,mask)
+            
     def gradient(self, out_grad, node):
-        return out_grad * self.mask
+        return assign_mask(out_grad, self.mask)
     
 def assign_mask(a, mask):
     return Assign_mask(mask)(a)
+
+
 
 class Max(TensorOp):
     def __init__(self, axis = -1,keep_dims=False):
@@ -581,12 +662,15 @@ class Max(TensorOp):
         self.keep_dims = keep_dims
     
     def compute(self, a):
-        return np.max(a, axis=self.axis,keepdims=self.keep_dims)
-    
+        if(a.device == 'cpu'):
+            return raw_pisor(np.max(a.numpy(), axis=self.axis,keepdims=self.keep_dims))
+        else:
+            raise NotImplementedError()
+            
     def gradient(self, out_grad, node):
         #生成一个mask
         mask = node.inputs[0].numpy() == node.numpy()
-        mask = Tensor.make_const(mask) #不需要关于mask的梯度
+        mask = Tensor.make_const(mask,device=out_grad.device) #不需要关于mask的梯度
         if(self.keep_dims == False):
             if(node.inputs[0].shape == ()):
                 whole_shape = np.array([1])

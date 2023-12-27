@@ -67,7 +67,7 @@ def get_node_set(output_tensor):
 
 def back_propgation(output_tensor, out_grad):
     
-    from task0_operators import Tensor
+    from finial_project.pitorch.Pisor import Tensor
     
     node_to_grad = {}
     

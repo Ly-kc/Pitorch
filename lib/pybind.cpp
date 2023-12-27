@@ -29,7 +29,6 @@ Tensor relu_backward_wrapper(const Tensor& forward_input, const Tensor& last_gra
     return relu_backward(&forward_input, &last_grad);
 }
 
-
 Tensor sigmoid_forward_wrapper(const Tensor& input)
 {
     return sigmoid_forward(&input);
@@ -95,12 +94,37 @@ Tensor cross_entropy_with_softmax_backward_wrapper(const Tensor& prob, const Ten
     return grad;
 }
 
+Tensor AddScalar_wrapper(Tensor& input1, float input2){
+    return input1 + input2;
+}
+Tensor EwiseAdd_wrapper(Tensor& input1, Tensor& input2){
+    return input1 + input2;
+}
+Tensor SubScalar_wrapper(Tensor& input1, float input2){
+    return input1 - input2;
+}
+Tensor EwiseSub_wrapper(Tensor& input1, Tensor& input2){
+    return input1 - input2;
+}
+Tensor DivScalar_wrapper(Tensor& input1, float input2){
+    return input1 / input2;
+}
+Tensor EwiseDiv_wrapper(Tensor& input1, Tensor& input2){
+    return input1 / input2;
+}
+Tensor MulScalar_wrapper(Tensor& input1, float input2){
+    return input1 * input2;
+}
+Tensor EwiseMul_wrapper(Tensor& input1, Tensor& input2){
+    return input1 * input2;
+}
 
-PYBIND11_MODULE(raw_tensor, m) {
+
+PYBIND11_MODULE(mytensor, m) {
     py::class_<Tensor>(m,"Tensor")
     // .def(py::init<std::vector<int>&, std::string>(), py::arg("shape"), py::arg("device")="cpu")  //confused with the one using numpy array. may be replaced by zeros()
     .def(py::init<std::vector<int>&, float, std::string>(), py::arg("shape"), py::arg("scalar"), py::arg("device")="cpu")
-    .def(py::init<const py::array_t<float>& , std::string>(), py::arg("arr"), py::arg("device")="cpu")
+    .def(py::init<const py::array_t<float>& , std::string>(), py::arg("array"), py::arg("device")="cpu")
     .def(py::init<const Tensor&>())
     .def(py::init<>())
     .def("numpy", &Tensor::to_numpy)
@@ -109,10 +133,21 @@ PYBIND11_MODULE(raw_tensor, m) {
     .def("_cpu", &Tensor::_cpu)
     .def("_gpu", &Tensor::_gpu)
     .def("reshape", &Tensor::reshape)
-    .def("shape", &Tensor::get_shape)
     .def("print_data", &Tensor::print_data)
-    .def("print_information", &Tensor::print_information);
-    // .def("__getitem__", &Tensor::at);
+    .def("print_information", &Tensor::print_information)
+    .def_property_readonly("size", &Tensor::get_element_num)
+    .def_property_readonly("device", &Tensor::get_device)
+    .def_property_readonly("shape", &Tensor::get_shape);
+
+    m.def("pAddScalar", &AddScalar_wrapper, "Add a scalar to a tensor");
+    m.def("pEwiseAdd", &EwiseAdd_wrapper, "Add two tensors");
+    m.def("pSubScalar", &SubScalar_wrapper, "Subtract a scalar from a tensor");
+    m.def("pEwiseSub", &EwiseSub_wrapper, "Subtract two tensors");
+    m.def("pDivScalar", &DivScalar_wrapper, "Divide a tensor by a scalar");
+    m.def("pEwiseDiv", &EwiseDiv_wrapper, "Divide two tensors");
+    m.def("pMulScalar", &MulScalar_wrapper, "Multiply a tensor by a scalar");
+    m.def("pEwiseMul", &EwiseMul_wrapper, "Multiply two tensors");
+
 
     m.def("ReLU_forward", &relu_forward_wrapper, "ReLU Module forward propagation function");
     // m.def("ReLU_backward", &relu_backward_wrapper, "ReLU Module backward propagation function", py::arg("forward_input"), py::arg("last_grad")=py::none());

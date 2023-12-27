@@ -1,12 +1,11 @@
 import numpy as np
-import os
+
 import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets
 from torch.functional import F
 import unittest
 from tqdm import tqdm
-
 import mytensor
 from mytensor import Tensor
 

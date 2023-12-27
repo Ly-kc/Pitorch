@@ -195,6 +195,22 @@ Tensor::Tensor(std::vector<int>& _shape, float scalar, std::string _device):shap
 Tensor::Tensor(const pybind11::array_t<float>& arr, std::string _device)
 {
     device = _device;
+    shape = std::vector<int>(arr.ndim());
+    for(int i = 0 ; i < arr.ndim() ; i ++)
+    {
+        shape[i] = arr.shape(i);
+    }
+    ndim = arr.ndim();
+    element_num = arr.size();
+    strides = std::vector<int>(ndim, 0);
+    int stride = 1;
+
+    for(int i = 0 ; i < ndim ; i ++)
+    {
+        strides[ndim-i-1] = stride;
+        stride *= shape[ndim-i-1];
+    }
+    
     if(device == "cpu")
     {
         data = new float[arr.size()];
@@ -209,20 +225,7 @@ Tensor::Tensor(const pybind11::array_t<float>& arr, std::string _device)
     {
         std::cout << "device error x when initialize tensor" << std::endl;
     }
-    shape = std::vector<int>(arr.ndim());
-    for(int i = 0 ; i < arr.ndim() ; i ++)
-    {
-        shape[i] = arr.shape(i);
-    }
-    ndim = arr.ndim();
-    element_num = arr.size();
-    strides = std::vector<int>(ndim, 0);
-    int stride = 1;
-    for(int i = 0 ; i < ndim ; i ++)
-    {
-        strides[ndim-i-1] = stride;
-        stride *= shape[ndim-i-1];
-    }
+
     manager.reset(data, device);
 }
 
@@ -318,7 +321,7 @@ void Tensor::_reshape(std::vector<int> _shape)
 {
     assert(device == "cpu" || device == "gpu");
     //decide which place to fill automatically
-    bool auto_place = -1;
+    int auto_place = -1;
     for(int i = 0 ; i < _shape.size() ; i ++)
     {
         if(_shape[i] == -1)
@@ -333,7 +336,6 @@ void Tensor::_reshape(std::vector<int> _shape)
     {
         new_elemant_num *= _shape[i];
     }
-
     if(auto_place != -1)
     {
         assert(element_num % new_elemant_num == 0); //"auto shape failed: element number not match"
