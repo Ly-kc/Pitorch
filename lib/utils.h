@@ -11,13 +11,13 @@ inline void sync_and_check_cuda_error_force() {
 }
 
 inline void _sync_and_check_cuda_error(const char* file, int line) {
-// #ifdef CHECK_CUDA_ERROR
+#ifdef CHECK_CUDA_ERROR
     cudaError_t err = cudaDeviceSynchronize();
     if (err != cudaSuccess) {
         printf("CUDA error: %s (%d) %s\n", file, line, cudaGetErrorString(err));
         exit(-1);
     }
-// #endif
+#endif
 }
 
 #define sync_and_check_cuda_error() \

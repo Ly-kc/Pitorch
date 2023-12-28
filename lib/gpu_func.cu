@@ -1,6 +1,6 @@
 #include "gpu_func.h"
-
 #include "utils.h"
+#define CHECK_CUDA_ERROR
 
 __global__ void add_kernel(float* dest, const float* src, int n)
 {
@@ -536,7 +536,7 @@ void batch_gemm_gpu(bool transa, bool transb, const float* A, const float* B, fl
     cublasStatus_t status;
     // cublas initialize
     // std::cout << "batch gemm start" <<M<<' '<<N<<' '<<K<<' '<<transa<<' '<<transb << ba << bb << bc  << batch_size<< std::endl;
-    // cout_gpu(A,M*K);
+    // cout_gpu(A,M*K*100);
     // cout_gpu(B,N*K);
     // cout_gpu(C,M*N);
     status = cublasSgemmStridedBatched(
@@ -619,6 +619,7 @@ void fc_backward_gpu(const float* grad_y, const float* input_x, const float* wei
     //(out_dim, batch_size) @ (batch_size, 1) = (out_dim, 1)
     float* temp;
     cudaMalloc((void**)&temp, batch_Size*sizeof(float));
+
     fill_gpu(temp,1.0,batch_Size);
     gemm_gpu(
         true,false,

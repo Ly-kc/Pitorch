@@ -5,7 +5,7 @@
 import numpy as np
 from typing import List, Optional, Tuple, Union
 from basic_operator import Op, Value
-from mytensor import Tensor as raw_pisor
+from mytensor import raw_pisor
 from mytensor import pEwiseAdd,pAddScalar,pEwiseMul,pMulScalar,pEwiseDiv,pDivScalar,pEwiseSub,pSubScalar
 from mytensor import ReLU_forward, ReLU_backward
 from autodiff import back_propgation
@@ -68,6 +68,8 @@ class Tensor(Value):
             if dtype is None:
                 dtype = array.dtype
             cached_data = Tensor._raw_pisor_from_numpy(array, device=device, dtype=dtype)
+        elif(isinstance(array,raw_pisor)):
+            cached_data = array
         else:
             if device is None:
                 device = 'cpu'
@@ -136,14 +138,24 @@ class Tensor(Value):
 
     @data.setter
     def data(self, value):
+        '''
+        不改变自身的device
+        '''
         if(isinstance(value, Tensor)):
-            self.cached_data = value.realize_cached_data()
+            if(self.cached_data.device == 'cpu'):
+                self.cached_data = value.realize_cached_data().cpu()
+            else:
+                self.cached_data = value.realize_cached_data().cuda()
         elif(isinstance(value, np.ndarray)):
-            self.cached_data = raw_pisor(value)
+            self.cached_data = raw_pisor(value, self.cached_data.device)
         elif(isinstance(value, raw_pisor)):
-            self.cached_data = value
+            if(self.cached_data.device == 'cpu'):
+                self.cached_data = value.cpu()
+            else:
+                self.cached_data = value.gpu()
         else:
             raise Exception('data type error')
+        
         self.dirty = True
         
 
@@ -337,12 +349,15 @@ class PowerScalar(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(a.numpy() ** self.scalar)
         else:
-            raise NotImplementedError()
+            # raise NotImplementedError()
+            print('fake gpu implementation: PowerScalar')
+            return raw_pisor(a.numpy() ** self.scalar, 'gpu')
         
     def gradient(self, out_grad, node):
         if(self.scalar == 0):
             return out_grad * 0
         else:
+            print(out_grad.device, node.inputs[0].device)
             return out_grad * self.scalar * PowerScalar(self.scalar - 1)(node.inputs[0])
         
 
@@ -358,7 +373,9 @@ class EWisePow(TensorOp):
         if(a.device == 'cpu' and b.device == 'cpu'):
             return raw_pisor(a.numpy()**b.numpy())
         else:
-            raise NotImplementedError()
+            # raise NotImplementedError()
+            print('fake gpu implementation: EWisePow')
+            return raw_pisor(a.numpy()**b.numpy(), 'gpu')
 
     def gradient(self, out_grad, node):
         a, b = node.inputs[0], node.inputs[1]
@@ -398,7 +415,6 @@ class DivScalar(TensorOp):
         # return raw_pisor(a.numpy() / self.scalar)
         return pDivScalar(a, self.scalar)
         
-
     def gradient(self, out_grad, node):
         return out_grad / self.scalar
         
@@ -427,7 +443,17 @@ class Transpose(TensorOp):
             b = np.ascontiguousarray(b)
             return raw_pisor(b)
         else:
-            raise NotImplementedError()
+            # raise NotImplementedError()
+            print('fake gpu implementation: Transpose')
+            new_axes = list(range(len(a.shape)))
+
+            if(self.axes is not None):
+                new_axes[self.axes[0]], new_axes[self.axes[1]] = new_axes[self.axes[1]], new_axes[self.axes[0]]
+            else:
+                new_axes[-1], new_axes[-2] = new_axes[-2], new_axes[-1]
+            b = np.transpose(a.numpy(), new_axes)
+            b = np.ascontiguousarray(b)
+            return raw_pisor(b, 'gpu')         
     
     def gradient(self, out_grad, node):
         #这里axes为None以及为（x,y）的情况都考虑了
@@ -477,7 +503,11 @@ class BroadcastTo(TensorOp):
             res += a.numpy()
             return raw_pisor(res)
         else:
-            raise NotImplementedError()
+            # raise NotImplementedError()
+            print('fake gpu implementation: BroadcastTo')
+            res = np.zeros(self.shape)
+            res += a.numpy()
+            return raw_pisor(res,'gpu')
                 
     def gradient(self, out_grad, node):
         origin_shape = node.inputs[0].shape
@@ -506,7 +536,9 @@ class Summation(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(np.sum(a.numpy(), axis=self.axes,keepdims=self.keep_dims))
         else:
-            raise NotImplementedError()
+            # raise NotImplementedError()
+            print('fake gpu implementation: Summation')
+            return raw_pisor(np.sum(a.numpy(), axis=self.axes,keepdims=self.keep_dims), 'gpu')
         
     def gradient(self, out_grad, node):
         #烦人的零维Tensor
@@ -540,7 +572,8 @@ class MatMul(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(np.matmul(a.numpy(), b.numpy()))
         else:
-            raise NotImplementedError()
+            print('fake gpu implementation: MatMul')
+            return raw_pisor(np.matmul(a.numpy(), b.numpy()), 'gpu')
         
     def gradient(self, out_grad, node):
         lhs, rhs = node.inputs
@@ -555,7 +588,6 @@ def matmul(a, b):
 class Negate(TensorOp):
     def compute(self, a):
         return pMulScalar(a, -1)
-        
 
     def gradient(self, out_grad, node):
         return -out_grad
@@ -571,13 +603,12 @@ class Log(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(np.log(a.numpy()))
         else:
-            raise NotImplementedError()
+            print('fake gpu implementation: Log')
+            return raw_pisor(np.log(a.numpy()), 'gpu')
                 
     def gradient(self, out_grad, node):
         return out_grad/node.inputs[0]
         
-
-
 def log(a):
     return Log()(a)
 
@@ -587,7 +618,8 @@ class Exp(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(np.exp(a.numpy()))        
         else:
-            raise NotImplementedError()
+            print('fake gpu implementation: Exp')
+            return raw_pisor(np.exp(a.numpy()), 'gpu')
         
     def gradient(self, out_grad, node):
         return out_grad * Exp()(node)
@@ -608,7 +640,7 @@ class ReLU(TensorOp):
         # mask = node.inputs[0].numpy() > 0
         # mask = Tensor.make_const(mask) #不需要关于mask的梯度
         # return out_grad * mask
-        return ReLU_backward(node.inputs[0], out_grad)
+        return Tensor(ReLU_backward(node.inputs[0].realize_cached_data(), out_grad.realize_cached_data()))
         
 def relu(a):
     return ReLU()(a)
@@ -624,7 +656,8 @@ class Index(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(a.numpy()[...,self.index])
         else:
-            raise NotImplementedError()
+            print('fake gpu implementation: Index')
+            return raw_pisor(a.numpy()[...,self.index], 'gpu')
         
     def gradient(self, out_grad, node):
     #(...,n,)->(...,n,c)
@@ -665,7 +698,8 @@ class Max(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(np.max(a.numpy(), axis=self.axis,keepdims=self.keep_dims))
         else:
-            raise NotImplementedError()
+            print('fake gpu implementation: Max')
+            return raw_pisor(np.max(a.numpy(), axis=self.axis,keepdims=self.keep_dims), 'gpu')
             
     def gradient(self, out_grad, node):
         #生成一个mask

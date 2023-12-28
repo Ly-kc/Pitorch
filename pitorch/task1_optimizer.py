@@ -7,8 +7,8 @@
 因此你可以引入任何的库来帮你进行数据处理和读取
 理论上我们也不需要依赖lab5的内容，如果你需要的话，你可以将lab5对应代码copy到对应位置
 """
-from finial_project.pitorch.autodiff import *
-from finial_project.pitorch.Pisor import *
+from autodiff import *
+from Pisor import *
 import numpy as np
 
 import torch
@@ -32,14 +32,14 @@ def parse_mnist():
     但需要使得输出包括X_tr, y_tr和X_te, y_te
     """
     training_data = datasets.MNIST(
-        root='data',
+        root='../data',
         train=True,
         download=True,
         transform=ToTensor()
     )
 
     test_data = datasets.MNIST(
-        root='data',
+        root='../data',
         train=False,
         download=True,
         transform=ToTensor()
@@ -130,7 +130,7 @@ def softmax_loss(Z:Tensor, y:Tensor):
     Z = Z - maxz
     
     mask = np.zeros(Z.shape,dtype=int)
-    mask[list(range(batch_size)) ,y.realize_cached_data()] = 1
+    mask[list(range(batch_size)) ,y.numpy().astype(int)] = 1
     masked_z = assign_mask(Z,mask) # (n,c)
     zy = masked_z.sum(axes=-1)  # (n,)  
     
@@ -183,7 +183,8 @@ def SGD_epoch(X, y, weights, lr = 0.1, batch=100):
         loss = softmax_loss(pred, batch_y)
         loss.backward()
         for weight in weights:
-            weight.inplace_update(EWiseAdd(), -lr * weight.grad.realize_cached_data())
+            # weight.inplace_update(EWiseAdd(), -lr * weight.grad.realize_cached_data())
+            weight.data = weight - lr * weight.grad   #这步每个运算符都是重载后的
             weight.dirty = False
             weight.grad = None
         # print(loss.realize_cached_data())
@@ -247,9 +248,9 @@ def loss_err(h,y):
     """ 
     计算给定预测结果h和真实标签y的loss和error
     """
-    loss = softmax_loss(h,y).realize_cached_data()
-    h = h.realize_cached_data()
-    y = y.realize_cached_data()
+    loss = softmax_loss(h,y).numpy()
+    h = h.numpy()
+    y = y.numpy()
     error = np.mean(h.argmax(axis=1) != y)
     return loss, error
 

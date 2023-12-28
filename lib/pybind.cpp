@@ -121,7 +121,7 @@ Tensor EwiseMul_wrapper(Tensor& input1, Tensor& input2){
 
 
 PYBIND11_MODULE(mytensor, m) {
-    py::class_<Tensor>(m,"Tensor")
+    py::class_<Tensor>(m,"raw_pisor")
     // .def(py::init<std::vector<int>&, std::string>(), py::arg("shape"), py::arg("device")="cpu")  //confused with the one using numpy array. may be replaced by zeros()
     .def(py::init<std::vector<int>&, float, std::string>(), py::arg("shape"), py::arg("scalar"), py::arg("device")="cpu")
     .def(py::init<const py::array_t<float>& , std::string>(), py::arg("array"), py::arg("device")="cpu")

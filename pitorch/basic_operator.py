@@ -7,7 +7,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Union
 import torch
 
-from mytensor import Tensor as raw_pisor
+from mytensor import raw_pisor
 
 TENSOR_COUNTER = 0
 
