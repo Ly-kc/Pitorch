@@ -54,7 +54,7 @@ def parse_mnist():
     
     
 
-def set_structure(n, hidden_dim, k):
+def set_structure(n, hidden_dim, k, device = 'cpu'):
     """
     定义你的网络结构，并进行简单的初始化
     一个简单的网络结构为两个Linear层，中间加上ReLU
@@ -70,9 +70,9 @@ def set_structure(n, hidden_dim, k):
     return list(W1, W2)
     """
     # k = k.realize_cached_data()
-    W1 = Tensor(np.random.randn(n, hidden_dim).astype(np.float32) / np.sqrt(hidden_dim))
-    W2 = Tensor(np.random.randn(hidden_dim, k).astype(np.float32) / np.sqrt(k))
-    W_res = Tensor(np.random.randn(n, k).astype(np.float32) / np.sqrt(k))
+    W1 = pisor(np.random.randn(n, hidden_dim).astype(np.float32) / np.sqrt(hidden_dim), device=device)
+    W2 = pisor(np.random.randn(hidden_dim, k).astype(np.float32) / np.sqrt(k), device=device)
+    W_res = pisor(np.random.randn(n, k).astype(np.float32) / np.sqrt(k), device=device)
     # weights = [W1, W2, W_res]
     weights = [W1, W2]
     
@@ -106,7 +106,7 @@ def forward(X, weights):
     
     return relu(X@W1)@W2
 
-def softmax_loss(Z:Tensor, y:Tensor):
+def softmax_loss(Z:pisor, y:pisor):
     """ 
     一个写了很多遍的Softmax loss...
 
@@ -151,17 +151,17 @@ def softmax_loss(Z:Tensor, y:Tensor):
     return loss    
      
 
-def opti_epoch(X, y, weights, lr = 1e-5, batch=100, beta1=0.9, beta2=0.999, using_adam=False):
+def opti_epoch(X, y, weights, lr = 1e-5, batch=100, beta1=0.9, beta2=0.999, using_adam=False, device='cpu'):
     """
     优化一个epoch
     具体请参考SGD_epoch 和 Adam_epoch的代码
     """
     if using_adam:
-        Adam_epoch(X, y, weights,  lr = lr, batch=batch, beta1=beta1, beta2=beta2)
+        Adam_epoch(X, y, weights,  lr = lr, batch=batch, beta1=beta1, beta2=beta2, device=device)
     else:
-        SGD_epoch(X, y, weights, lr = lr, batch=batch)
+        SGD_epoch(X, y, weights, lr = lr, batch=batch, device=device)
 
-def SGD_epoch(X, y, weights, lr = 0.1, batch=100):
+def SGD_epoch(X, y, weights, lr = 0.1, batch=100, device='cpu'):
     """ 
     SGD优化一个List of Weights
     本函数应该inplace地修改Weights矩阵来进行优化
@@ -176,8 +176,8 @@ def SGD_epoch(X, y, weights, lr = 0.1, batch=100):
     """
     data_num = X.shape[0]
     for i in range(0,data_num,batch):
-        batch_X = Tensor.make_const(X[i:i+batch])
-        batch_y = Tensor.make_const(y[i:i+batch])
+        batch_X = pisor.make_const(X[i:i+batch], device=device)
+        batch_y = pisor.make_const(y[i:i+batch], device=device)
         pred = forward(batch_X, weights)
         # print(pred.numpy()[0])
         loss = softmax_loss(pred, batch_y)
@@ -190,7 +190,7 @@ def SGD_epoch(X, y, weights, lr = 0.1, batch=100):
         # print(loss.realize_cached_data())
     
 
-def Adam_epoch(X, y, weights, lr = 0.1, batch=100, beta1=0.9, beta2=0.999):
+def Adam_epoch(X, y, weights, lr = 0.1, batch=100, beta1=0.9, beta2=0.999,device='cpu'):
     """ 
     ADAM优化一个
     本函数应该inplace地修改Weights矩阵来进行优化
@@ -222,8 +222,8 @@ def Adam_epoch(X, y, weights, lr = 0.1, batch=100, beta1=0.9, beta2=0.999):
     data_num = X.shape[0]
     for i in range(0,data_num,batch):
         t += 1
-        batch_X = Tensor.make_const(X[i:i+batch])
-        batch_y = Tensor.make_const(y[i:i+batch])
+        batch_X = pisor.make_const(X[i:i+batch],device=device)
+        batch_y = pisor.make_const(y[i:i+batch],device=device)
         pred = forward(batch_X, weights)
         # print(pred.numpy()[0])
         loss = softmax_loss(pred, batch_y)
@@ -255,12 +255,12 @@ def loss_err(h,y):
     return loss, error
 
 def train_nn(X_tr, y_tr, X_te, y_te, weights, hidden_dim = 500,
-             epochs=10, lr=0.5, batch=100, beta1=0.9, beta2=0.999, using_adam=False):
+             epochs=10, lr=0.5, batch=100, beta1=0.9, beta2=0.999, using_adam=False, device='cpu'):
     """ 
     训练过程
     """
     n, k = X_tr.shape[1], y_tr.max() + 1
-    weights = set_structure(n, hidden_dim, k)
+    weights = set_structure(n, hidden_dim, k, device=device)
     np.random.seed(0)
     
     #X,y: numpy array
@@ -268,8 +268,8 @@ def train_nn(X_tr, y_tr, X_te, y_te, weights, hidden_dim = 500,
     print("| Epoch | Train Loss | Train Err | Test Loss | Test Err |")
     for epoch in range(epochs):
         opti_epoch(X_tr, y_tr, weights, lr=lr, batch=batch, beta1=beta1, beta2=beta2, using_adam=using_adam)
-        train_loss, train_err = loss_err(forward(Tensor.make_const(X_tr), weights), Tensor.make_const(y_tr))
-        test_loss, test_err = loss_err(forward(Tensor.make_const(X_te), weights), Tensor.make_const(y_te))
+        train_loss, train_err = loss_err(forward(pisor.make_const(X_tr), weights), pisor.make_const(y_tr))
+        test_loss, test_err = loss_err(forward(pisor.make_const(X_te), weights), pisor.make_const(y_te))
         print("|  {:>4} |    {:.5f} |   {:.5f} |   {:.5f} |  {:.5f} |"\
               .format(epoch, train_loss, train_err, test_loss, test_err))
 

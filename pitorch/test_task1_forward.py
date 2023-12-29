@@ -6,6 +6,7 @@
 import numpy as np
 from Pisor import *
 
+Tensor=pisor
 
 def test_power_scalar_forward():
     np.testing.assert_allclose(

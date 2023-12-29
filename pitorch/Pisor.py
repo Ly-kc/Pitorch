@@ -17,8 +17,8 @@ cace_data:raw_pisor
 dtype暂时废弃
 divice完全存储在raw_pisor中,Tensor不设self.device
 '''
-class Tensor(Value):
-    grad: "Tensor"
+class pisor(Value):
+    grad: "pisor"
 
     def _init(
         self,
@@ -49,7 +49,7 @@ class Tensor(Value):
         requires_grad=True,
         **kwargs
     ):
-        if isinstance(array, Tensor):
+        if isinstance(array, pisor):
             if device is None:
                 device = array.device
             if dtype is None:
@@ -59,7 +59,7 @@ class Tensor(Value):
                 cached_data = array.realize_cached_data()  
             else:
                 #否则深拷贝生成raw_pisor
-                cached_data = Tensor._raw_pisor_from_numpy(
+                cached_data = pisor._raw_pisor_from_numpy(
                     array.numpy(), device=device, dtype=dtype  
                 )
         elif isinstance(array, np.ndarray):
@@ -67,13 +67,13 @@ class Tensor(Value):
                 device = 'cpu'
             if dtype is None:
                 dtype = array.dtype
-            cached_data = Tensor._raw_pisor_from_numpy(array, device=device, dtype=dtype)
+            cached_data = pisor._raw_pisor_from_numpy(array, device=device, dtype=dtype)
         elif(isinstance(array,raw_pisor)):
             cached_data = array
         else:
             if device is None:
                 device = 'cpu'
-            cached_data = Tensor._raw_pisor_from_array(array, device=device, dtype=dtype)       
+            cached_data = pisor._raw_pisor_from_array(array, device=device, dtype=dtype)       
             
         self._init(
             None,
@@ -104,7 +104,7 @@ class Tensor(Value):
             for input in inputs:
                 if(input.device != device):
                     raise Exception('parameters not on single device!!!!, please use cpu() or cuda() to change device')
-        tensor = Tensor.__new__(Tensor)
+        tensor = pisor.__new__(pisor)
         tensor._init(op, inputs)
         if not tensor.requires_grad:
             return tensor.detach()
@@ -113,12 +113,12 @@ class Tensor(Value):
 
     @staticmethod
     def make_const(data, requires_grad=False, device='cpu'):
-        tensor = Tensor.__new__(Tensor)
+        tensor = pisor.__new__(pisor)
         if(isinstance(data, np.ndarray)):
             data = raw_pisor(data, device=device)
         elif(isinstance(data, list) or isinstance(data, tuple)):
             data = raw_pisor(np.array(data), device=device)
-        elif(isinstance(data, Tensor)):
+        elif(isinstance(data, pisor)):
             data = data.realize_cached_data()
         elif(not isinstance(data, raw_pisor)):
             raise Exception('make_const data type error')
@@ -126,7 +126,7 @@ class Tensor(Value):
             None,
             [],
             cached_data=data
-            if not isinstance(data, Tensor)
+            if not isinstance(data, pisor)
             else data.realize_cached_data(),
             requires_grad=requires_grad,
         )
@@ -141,7 +141,7 @@ class Tensor(Value):
         '''
         不改变自身的device
         '''
-        if(isinstance(value, Tensor)):
+        if(isinstance(value, pisor)):
             if(self.cached_data.device == 'cpu'):
                 self.cached_data = value.realize_cached_data().cpu()
             else:
@@ -160,7 +160,7 @@ class Tensor(Value):
         
 
     def detach(self,requies_grad=False):
-        return Tensor.make_const(self.realize_cached_data(),requires_grad=requies_grad)
+        return pisor.make_const(self.realize_cached_data(),requires_grad=requies_grad)
 
     @property
     def shape(self):
@@ -195,7 +195,7 @@ class Tensor(Value):
         
 
     def __repr__(self):
-        return "Tensor(" + str(self.numpy()) + ")"
+        return "pisor(" + str(self.numpy()) + ")"
 
     def __str__(self):
         return self.numpy().__str__()
@@ -206,31 +206,31 @@ class Tensor(Value):
 
 
     def __add__(self, other):
-        if isinstance(other, Tensor):
+        if isinstance(other, pisor):
             return EWiseAdd()(self, other)
         else:
             return AddScalar(other)(self)
 
     def __mul__(self, other):
-        if isinstance(other, Tensor):
+        if isinstance(other, pisor):
             return EWiseMul()(self, other)
         else:
             return MulScalar(other)(self)
 
     def __pow__(self, other):
-        if isinstance(other, Tensor):
+        if isinstance(other, pisor):
             return EWisePow()(self, other)
         else:
             return PowerScalar(other)(self)
 
     def __sub__(self, other):
-        if isinstance(other, Tensor):
+        if isinstance(other, pisor):
             return EWiseAdd()(self, Negate()(other))
         else:
             return AddScalar(-other)(self)
 
     def __truediv__(self, other):
-        if isinstance(other, Tensor):
+        if isinstance(other, pisor):
             return EWiseDiv()(self, other)
         else:
             return DivScalar(other)(self)
@@ -270,9 +270,9 @@ class Tensor(Value):
 
 class TensorOp(Op):
     def __call__(self, *args):
-        return Tensor.make_from_op(self, args)
+        return pisor.make_from_op(self, args)
     
-    def gradient(self, out_grad: Tensor, node: Tensor):
+    def gradient(self, out_grad: pisor, node: pisor):
         raise not NotImplementedError()
 
 class EWiseAdd(TensorOp):
@@ -285,7 +285,7 @@ class EWiseAdd(TensorOp):
         #     raise Exception('add device error')
         return pEwiseAdd(a,b) 
         
-    def gradient(self, out_grad: Tensor, node: Tensor):
+    def gradient(self, out_grad: pisor, node: pisor):
         return out_grad, out_grad
 
 
@@ -301,7 +301,7 @@ class AddScalar(TensorOp):
         # return raw_pisor(a.numpy() + self.scalar)
         return pAddScalar(a, self.scalar)
 
-    def gradient(self, out_grad: Tensor, node: Tensor):
+    def gradient(self, out_grad: pisor, node: pisor):
         return out_grad
 
 
@@ -314,7 +314,7 @@ class EWiseMul(TensorOp):
         # return raw_pisor(a.numpy() * b.numpy())
         return pEwiseMul(a,b)
 
-    def gradient(self, out_grad: Tensor, node: Tensor):
+    def gradient(self, out_grad: pisor, node: pisor):
         lhs, rhs = node.inputs
         return out_grad * rhs, out_grad * lhs
 
@@ -331,7 +331,7 @@ class MulScalar(TensorOp):
         # return raw_pisor(a.numpy() * self.scalar)
         return pMulScalar(a, self.scalar)
 
-    def gradient(self, out_grad: Tensor, node: Tensor):
+    def gradient(self, out_grad: pisor, node: pisor):
         return (out_grad * self.scalar,)
 
 
@@ -638,9 +638,9 @@ class ReLU(TensorOp):
     def gradient(self, out_grad, node):
         # #生成一个mask
         # mask = node.inputs[0].numpy() > 0
-        # mask = Tensor.make_const(mask) #不需要关于mask的梯度
+        # mask = pisor.make_const(mask) #不需要关于mask的梯度
         # return out_grad * mask
-        return Tensor(ReLU_backward(node.inputs[0].realize_cached_data(), out_grad.realize_cached_data()))
+        return pisor(ReLU_backward(node.inputs[0].realize_cached_data(), out_grad.realize_cached_data()))
         
 def relu(a):
     return ReLU()(a)
@@ -663,7 +663,7 @@ class Index(TensorOp):
     #(...,n,)->(...,n,c)
         mask = np.zeros_like(node.inputs[0].numpy())
         mask[...,self.index] = 1
-        mask = Tensor.make_const(mask)
+        mask = pisor.make_const(mask)
         full_out_grad = broadcast_to(out_grad, node.inputs[0].shape)
         return full_out_grad * mask
 
@@ -704,7 +704,7 @@ class Max(TensorOp):
     def gradient(self, out_grad, node):
         #生成一个mask
         mask = node.inputs[0].numpy() == node.numpy()
-        mask = Tensor.make_const(mask,device=out_grad.device) #不需要关于mask的梯度
+        mask = pisor.make_const(mask,device=out_grad.device) #不需要关于mask的梯度
         if(self.keep_dims == False):
             if(node.inputs[0].shape == ()):
                 whole_shape = np.array([1])

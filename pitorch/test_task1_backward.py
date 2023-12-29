@@ -6,6 +6,8 @@
 import numpy as np
 from Pisor import *
 
+Tensor=pisor
+
 def gradient_check(f, *args, tol=1e-2, backward=False, **kwargs):
     eps = 1/2**10
     numerical_grads = [np.zeros(a.shape,dtype=np.float64) for a in args]

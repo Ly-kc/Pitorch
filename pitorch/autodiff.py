@@ -67,7 +67,7 @@ def get_node_set(output_tensor):
 
 def back_propgation(output_tensor, out_grad):
     
-    from Pisor import Tensor
+    from Pisor import pisor
     
     node_to_grad = {}
     
@@ -75,10 +75,10 @@ def back_propgation(output_tensor, out_grad):
     for node in node_list:
         node_to_grad[node] = []
     if(len(output_tensor.shape)==0):
-        node_to_grad[output_tensor] = [Tensor.make_const(np.array(1))]  #相当于反向的输入，不需要记录梯度
+        node_to_grad[output_tensor] = [pisor.make_const(np.array(1))]  #相当于反向的输入，不需要记录梯度
     elif(len(output_tensor.shape)==1):
         assert(output_tensor.shape[0] == 1)
-        node_to_grad[output_tensor] = [Tensor.make_const(np.array([1]))]
+        node_to_grad[output_tensor] = [pisor.make_const(np.array([1]))]
     else:
         assert(output_tensor.shape == out_grad.shape)
         node_to_grad[output_tensor] = [out_grad]
