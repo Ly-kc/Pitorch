@@ -6,8 +6,8 @@ The first AI framewrok designed by myself, which is the final project of class "
 ```
 conda create -n pitorch python=3.9
 conda activate pitorch
+# install pytorch according to your cuda version.
 # (We just use torch.utils.cpp_extension to conveniently bind cuda code to python, and not utilize torch to conduct any operation)
-install pytorch according to your cuda version.
 cd lib
 python setup.py develop
 ```
