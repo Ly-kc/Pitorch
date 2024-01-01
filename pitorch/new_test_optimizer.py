@@ -50,6 +50,11 @@ def parse_mnist():
     X_te = np.array([i[0].numpy().reshape(-1) for i in test_data])
     y_te = np.array([i[1] for i in test_data])
     
+    # X_tr = np.array([i[0].numpy() for i in training_data])  #(n,32, 32)
+    # y_tr = np.array([i[1] for i in training_data])  #(n)
+    # X_te = np.array([i[0].numpy() for i in test_data])
+    # y_te = np.array([i[1] for i in test_data])
+    
     return X_tr, y_tr, X_te, y_te
     
     
@@ -86,26 +91,22 @@ def set_structure(n, hidden_dim, k, device = 'cpu'):
 
 def forward(X, weights):
     """
-    使用你的网络结构，来计算给定输入X的输出
     Args:
         X : 2D input array of size (num_examples, input_dim).
         weights : list of 2D array of layers weights, of shape [(input_dim, hidden_dim)]
     Returns:
         Logits calculated by your network structure.
-    Example:
-    W1 = weights[0]
-    W2 = weights[1]
-    return np.maximum(X@W1,0)@W2
     """
     X = fc(X, weights[0], weights[1])
     X = relu(X)
     X = fc(X, weights[2], weights[3])
+    
+    # X = 
+    
     return X
 
 def softmax_loss(Z:pisor, y:pisor):
     """ 
-    一个写了很多遍的Softmax loss...
-
     Args:
         Z : 2D numpy array of shape (batch_size, num_classes), 
         containing the logit predictions for each class.z

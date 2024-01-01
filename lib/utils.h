@@ -20,8 +20,9 @@ inline void _sync_and_check_cuda_error(const char* file, int line) {
 #endif
 }
 
-#pragma once
-#include <stdio.h>
+#ifdef CHECK_CUDA_ERROR
+#warning "CHECK_CUDA_ERROR is defined"
+#endif
 
 #define CHECK(call)                                   \
 do                                                    \

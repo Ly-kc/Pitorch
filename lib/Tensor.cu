@@ -47,7 +47,7 @@ void Memory_Manager::sub_refcount()
         }
         else if(device == "gpu")
         {
-            CHECK(cudaFree(data));
+            CHECK(cudaFreeAsync(data, cudaStreamDefault));
             delete refcount;
         }
         // std::cout << "delete data at "<< data << std::endl;
@@ -107,7 +107,7 @@ Tensor::Tensor(std::vector<int>& _shape, std::string _device):shape(_shape), dev
     }
     else if(device == "gpu")
     {
-        CHECK(cudaMalloc((void**)&data, element_num*sizeof(float)));
+        CHECK(cudaMallocAsync((void**)&data, element_num*sizeof(float), cudaStreamDefault));
         fill_gpu(data, 0, element_num);
         sync_and_check_cuda_error();
     }
@@ -144,7 +144,7 @@ Tensor::Tensor(std::vector<int>& _shape, float* _data, std::string _device):shap
     }
     else if(device == "gpu")
     {
-        CHECK(cudaMalloc((void**)&data, element_num*sizeof(float)));
+        CHECK(cudaMallocAsync((void**)&data, element_num*sizeof(float), cudaStreamDefault, cudaStreamDefault));
         CHECK(cudaMemcpy(data, _data, element_num*sizeof(float), cudaMemcpyHostToDevice));
     }
     else
@@ -182,7 +182,7 @@ Tensor::Tensor(std::vector<int>& _shape, float scalar, std::string _device):shap
     }
     else if(device == "gpu")
     {
-        CHECK(cudaMalloc((void**)&data, element_num*sizeof(float)));
+        CHECK(cudaMallocAsync((void**)&data, element_num*sizeof(float), cudaStreamDefault));
         fill_gpu(data, scalar, element_num);
         sync_and_check_cuda_error();
     }
@@ -220,7 +220,7 @@ Tensor::Tensor(const pybind11::array_t<float>& arr, std::string _device)
     }
     else if(device == "gpu")
     {
-        CHECK(cudaMalloc((void**)&data, arr.size()*sizeof(float)));
+        CHECK(cudaMallocAsync((void**)&data, arr.size()*sizeof(float), cudaStreamDefault));
         CHECK(cudaMemcpy(data, arr.data(), arr.size()*sizeof(float), cudaMemcpyHostToDevice));
     }
     else
@@ -286,7 +286,7 @@ void Tensor::_gpu()
     else if(device == "cpu")
     {
         float* temp;
-        CHECK(cudaMalloc((void**)&temp, element_num*sizeof(float)));
+        CHECK(cudaMallocAsync((void**)&temp, element_num*sizeof(float), cudaStreamDefault));
         CHECK(cudaMemcpy(temp, data, element_num*sizeof(float), cudaMemcpyHostToDevice));
         data = temp;
         manager.reset(data,"gpu");
@@ -461,7 +461,7 @@ Tensor Tensor::copy() const
     }
     else if(device == "gpu")
     {
-        CHECK(cudaMalloc((void**)&(res.data), element_num*sizeof(float)));
+        CHECK(cudaMallocAsync((void**)&(res.data), element_num*sizeof(float), cudaStreamDefault));
         CHECK(cudaMemcpy(res.data, data, element_num*sizeof(float), cudaMemcpyDeviceToDevice));
     }
     res.manager.reset(res.data, device);

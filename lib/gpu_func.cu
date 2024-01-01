@@ -2,6 +2,16 @@
 #include "gpu_func.h"
 #include "utils.h"
 
+class CUDAMempoolAttributeSetter {
+    public:
+        CUDAMempoolAttributeSetter() {
+            cudaMemPool_t mempool;
+            cudaDeviceGetDefaultMemPool(&mempool, 0);
+            uint64_t threshold = UINT64_MAX;
+            cudaMemPoolSetAttribute(mempool, cudaMemPoolAttrReleaseThreshold, &threshold);
+        }
+} _setter;
+
 __global__ void add_kernel(float* dest, const float* src, int n)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -577,7 +587,7 @@ void fc_forward_gpu(const float* input, float* output, const float* weights, con
     // cout_gpu(input, batch_Size*in_dim);
     //add bias  (batch_size,1) @ (1,out_dim) = (batch_size,out_dim)
     float* temp;
-    CHECK(cudaMalloc((void**)&temp, batch_Size*out_dim*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&temp, batch_Size*out_dim*sizeof(float), cudaStreamDefault));
     fill_gpu(temp,1.0,batch_Size);
     gemm_gpu(
         false,false,
@@ -586,7 +596,7 @@ void fc_forward_gpu(const float* input, float* output, const float* weights, con
         1.0,1.0
     );
     //free temp
-    CHECK(cudaFree(temp));
+    CHECK(cudaFreeAsync(temp, cudaStreamDefault));
     sync_and_check_cuda_error(); 
 }
 
@@ -617,7 +627,7 @@ void fc_backward_gpu(const float* grad_y, const float* input_x, const float* wei
     //grad_bias = grad_y.T @ 1
     //(out_dim, batch_size) @ (batch_size, 1) = (out_dim, 1)
     float* temp;
-    CHECK(cudaMalloc((void**)&temp, batch_Size*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&temp, batch_Size*sizeof(float), cudaStreamDefault));
     fill_gpu(temp,1.0,batch_Size);
     gemm_gpu(
         true,false,
@@ -626,7 +636,7 @@ void fc_backward_gpu(const float* grad_y, const float* input_x, const float* wei
         1.0,0.0
     );
     
-    CHECK(cudaFree(temp));
+    CHECK(cudaFreeAsync(temp, cudaStreamDefault));
     sync_and_check_cuda_error(); 
 }
 
@@ -674,7 +684,7 @@ void conv2d_forward_gpu(const float* input, float* output, const float* weights,
     float* imgcol;
     int outH = (H+2*padding-K)/stride + 1;
     int outW = (W+2*padding-K)/stride + 1;
-    CHECK(cudaMalloc((void**)&imgcol, B*outH*outW*C_in*K*K*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&imgcol, B*outH*outW*C_in*K*K*sizeof(float), cudaStreamDefault));
     im2col_gpu(input, imgcol, B, C_in, H, W, K, stride, padding);
     
     //output = weights @ imgcol.T + bias   Here the transepose exclude the 0th dim  (Cout,(Cin,K,K)) @ B((H',W'),(Cin,K,K)).T = B(Cout,H',W')
@@ -688,7 +698,7 @@ void conv2d_forward_gpu(const float* input, float* output, const float* weights,
     );
     //add bias   (Cout,1) @ (1,H'*W') = (Cout,H'*W')     (Cout,H'*W') + B(Cout,H'*W') = B(Cout,H'*W')
     float* temp;
-    CHECK(cudaMalloc((void**)&temp, outH*outW*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&temp, outH*outW*sizeof(float), cudaStreamDefault));
     fill_gpu(temp,1.0,outH*outW);
     batch_gemm_gpu(
         false,false,
@@ -700,8 +710,8 @@ void conv2d_forward_gpu(const float* input, float* output, const float* weights,
     );
 
     //free imgcol and temp
-    CHECK(cudaFree(imgcol));
-    CHECK(cudaFree(temp));
+    CHECK(cudaFreeAsync(imgcol, cudaStreamDefault));
+    CHECK(cudaFreeAsync(temp, cudaStreamDefault));
     sync_and_check_cuda_error();
 }
 
@@ -720,13 +730,13 @@ void conv2d_backward_gpu(const float* grad_y, const float* input_x, const float*
     float* imgcol;
     int outH = (H+2*padding-K)/stride + 1;
     int outW = (W+2*padding-K)/stride + 1;
-    CHECK(cudaMalloc((void**)&imgcol, B*outH*outW*C_in*K*K*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&imgcol, B*outH*outW*C_in*K*K*sizeof(float), cudaStreamDefault));
     im2col_gpu(input_x, imgcol, B, C_in, H, W, K, stride, padding);
 
     //y = weights @ imgcolx.T + bias   Here the transepose exclude the 0th dim  (Cout,(Cin,K,K)) @ B((H',W'),(Cin,K,K)).T = B(Cout,H',W')
     //grad_weights = grad_y @ imgcolx
     float* batch_grad_weights; //B*Cout*Cin*K*K
-    CHECK(cudaMalloc((void**)&batch_grad_weights, B*C_out*C_in*K*K*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&batch_grad_weights, B*C_out*C_in*K*K*sizeof(float), cudaStreamDefault));
     batch_gemm_gpu(
         false,false,
         grad_y, imgcol, batch_grad_weights,
@@ -738,7 +748,7 @@ void conv2d_backward_gpu(const float* grad_y, const float* input_x, const float*
     //get grad_weights
     //(1,B) @ (B,Cout,Cin,K,K) = (1,Cout,Cin,K,K)
     float* tempB; 
-    CHECK(cudaMalloc((void**)&tempB, B*sizeof(float))); //B
+    CHECK(cudaMallocAsync((void**)&tempB, B*sizeof(float), cudaStreamDefault)); //B
     fill_gpu(tempB,1.0,B);
     gemm_gpu(
         false,false,
@@ -749,9 +759,9 @@ void conv2d_backward_gpu(const float* grad_y, const float* input_x, const float*
     //to get bias of shape cout from grad_y of shape (B,Cout,H',W'), we need to sum over B,H',W':
     //B*Cout*H'*W' @ (H'*W', 1) = B*Cout   (1,B)@(B,Cout) = (1,Cout)   
     float* batch_grad_bias; //B*Cout
-    CHECK(cudaMalloc((void**)&batch_grad_bias, B*C_out*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&batch_grad_bias, B*C_out*sizeof(float), cudaStreamDefault));
     float* temp_outHW;
-    CHECK(cudaMalloc((void**)&temp_outHW, outH*outW*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&temp_outHW, outH*outW*sizeof(float), cudaStreamDefault));
     fill_gpu(temp_outHW,1.0,outH*outW);
     batch_gemm_gpu(
         false,false,
@@ -772,7 +782,7 @@ void conv2d_backward_gpu(const float* grad_y, const float* input_x, const float*
     //grad_imgcolx = (weights.T @ grad_y).T = grad_y.T @ weights  (where the transpose exclude the 0th(batch) dim)
     //(H'*W',Cin*K*K) = (H'*W', cout) @ (cout, Cin*K*K)
     float* grad_imgcolx;
-    CHECK(cudaMalloc((void**)&grad_imgcolx, B*outH*outW*C_in*K*K*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&grad_imgcolx, B*outH*outW*C_in*K*K*sizeof(float), cudaStreamDefault));
     batch_gemm_gpu(
         true,false,
         grad_y, weights, grad_imgcolx,
@@ -786,12 +796,12 @@ void conv2d_backward_gpu(const float* grad_y, const float* input_x, const float*
     col2im_gpu(grad_imgcolx, grad_x, B, C_in, H, W, K, stride, padding);
     
     //free any malloced
-    CHECK(cudaFree(imgcol));
-    CHECK(cudaFree(batch_grad_weights));
-    CHECK(cudaFree(tempB));
-    CHECK(cudaFree(batch_grad_bias));
-    CHECK(cudaFree(temp_outHW));
-    CHECK(cudaFree(grad_imgcolx));
+    CHECK(cudaFreeAsync(imgcol, cudaStreamDefault));
+    CHECK(cudaFreeAsync(batch_grad_weights, cudaStreamDefault));
+    CHECK(cudaFreeAsync(tempB, cudaStreamDefault));
+    CHECK(cudaFreeAsync(batch_grad_bias, cudaStreamDefault));
+    CHECK(cudaFreeAsync(temp_outHW, cudaStreamDefault));
+    CHECK(cudaFreeAsync(grad_imgcolx, cudaStreamDefault));
     sync_and_check_cuda_error();
 }
 
@@ -827,21 +837,21 @@ void softmax_forward_gpu(const float* input, float* output, int N, int C)
     //input, output: N*C
     //get max among C
     float* batch_max;
-    CHECK(cudaMalloc((void**)&batch_max, N*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&batch_max, N*sizeof(float), cudaStreamDefault));
     int BlockNum = CudaGetBlocks(N);
     simple_max_kernel<<<BlockNum, BlockSize>>>(input, batch_max, N ,C);
     BlockNum = CudaGetBlocks(N*C);
     decmax_and_exp_kernel<<<BlockNum, BlockSize>>>(input, batch_max, output, N, C);
     float* batch_expsum;
-    CHECK(cudaMalloc((void**)&batch_expsum, N*sizeof(float)));
+    CHECK(cudaMallocAsync((void**)&batch_expsum, N*sizeof(float), cudaStreamDefault));
     BlockNum = CudaGetBlocks(N);
     simple_sum_kernel<<<BlockNum, BlockSize>>>(output, batch_expsum, N, C);
     BlockNum = CudaGetBlocks(N*C);
     broadcast_div_kernel<<<BlockNum, BlockSize>>>(output, batch_expsum, N, C);
 
 
-    CHECK(cudaFree(batch_max));
-    CHECK(cudaFree(batch_expsum));
+    CHECK(cudaFreeAsync(batch_max, cudaStreamDefault));
+    CHECK(cudaFreeAsync(batch_expsum, cudaStreamDefault));
     sync_and_check_cuda_error();
 }
 
@@ -852,7 +862,7 @@ void cross_entropy_forward_gpu(const float* pred_prob, const float* gt_prob, flo
     //output: 1
     int BlockNum = CudaGetBlocks(N*C);
     float* temp;
-    CHECK(cudaMalloc(&temp, N*C*sizeof(float)));
+    CHECK(cudaMallocAsync(&temp, N*C*sizeof(float), cudaStreamDefault));
     cross_entropy_forward_kernel<<<BlockNum, BlockSize>>>(pred_prob, gt_prob, temp, N, C);
     //sum temp with cublas
     cublasStatus_t status;
@@ -866,7 +876,7 @@ void cross_entropy_forward_gpu(const float* pred_prob, const float* gt_prob, flo
     cublasSetPointerMode(cublasHandle(),CUBLAS_POINTER_MODE_HOST); 
 
     div_gpu(loss, N, 1);
-    CHECK(cudaFree(temp));
+    CHECK(cudaFreeAsync(temp, cudaStreamDefault));
     sync_and_check_cuda_error();
 
 }
