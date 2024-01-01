@@ -75,6 +75,7 @@ public:
     float& at(const std::vector<int>& index);
     Tensor copy() const;   //return deep copy of the tensor
 
+    Tensor power(float scalar);
     
     Tensor operator+(const Tensor& other);   //the result has its own data location
     Tensor operator-(const Tensor& other);

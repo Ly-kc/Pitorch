@@ -21,8 +21,8 @@ import matplotlib.pyplot as plt
 import tqdm
 
 t = 0
-ms:list[np.ndarray] = []
-vs:list[np.ndarray] = []
+ms:list[pisor] = []
+vs:list[pisor] = []
 
 def parse_mnist():
     """
@@ -84,8 +84,8 @@ def set_structure(n, hidden_dim, k, device = 'cpu'):
     
     global t,ms,vs
     t = 0
-    ms = [np.zeros(weight.numpy().shape) for weight in weights]
-    vs = [np.zeros(weight.numpy().shape) for weight in weights]    
+    ms = [pisor.make_const(np.zeros(weight.numpy().shape), device=device) for weight in weights]
+    vs = [pisor.make_const(np.zeros(weight.numpy().shape), device=device) for weight in weights]    
     
     return weights 
 
@@ -197,22 +197,22 @@ def Adam_epoch(X, y, weights, lr = 0.1, batch=100, beta1=0.9, beta2=0.999,device
     data_num = X.shape[0]
     for i in range(0,data_num,batch):
         t += 1
-        batch_X = pisor.make_const(X[i:i+batch],device=device)
-        batch_y = pisor.make_const(y[i:i+batch],device=device)
+        batch_X = pisor.make_const(X[i:i+batch], device=device)
+        batch_y = pisor.make_const(y[i:i+batch], device=device)
         pred = forward(batch_X, weights)
         # print(pred.numpy()[0])
         loss = softmax_loss(pred, batch_y)
         loss.backward()
         for i in range(len(weights)):
             weight = weights[i]
-            grad = weight.grad.realize_cached_data()
-            ms[i] = beta1 * ms[i] + (1 - beta1) * grad  
+            grad = weight.grad.detach()
+            ms[i] = beta1 * ms[i] + (1 - beta1) * grad
             vs[i] = beta2 * vs[i] + (1 - beta2) * grad**2
             m_hat = ms[i] / (1 - beta1**(t))
             v_hat = vs[i] / (1 - beta2**(t))
-            update_amount=  -lr * m_hat / (np.sqrt(v_hat) + 1e-8)
+            update_amount = -lr * m_hat / ((v_hat**0.5) + 1e-8)
             
-            weight.inplace_update(EWiseAdd(), update_amount)
+            weight.data = weight + lr * update_amount
             weight.dirty = False
             weight.grad = None
         # print(loss.realize_cached_data())
@@ -253,7 +253,7 @@ if __name__ == "__main__":
     X_tr, y_tr, X_te, y_te = parse_mnist() 
     weights = set_structure(X_tr.shape[1], 100, y_tr.max() + 1)
     ## using SGD optimizer 
-    train_nn(X_tr, y_tr, X_te, y_te, weights, hidden_dim=100, epochs=350, lr = 1e-2, batch=64, beta1=0.9, beta2=0.999, using_adam=False, device='gpu')
+    # train_nn(X_tr, y_tr, X_te, y_te, weights, hidden_dim=100, epochs=350, lr = 1e-2, batch=64, beta1=0.9, beta2=0.999, using_adam=False, device='gpu')
     ## using Adam optimizer
-    # train_nn(X_tr, y_tr, X_te, y_te, weights, hidden_dim=128, epochs=200, lr = 1e-4, batch=64, beta1=0.9, beta2=0.999, using_adam=True)
+    train_nn(X_tr, y_tr, X_te, y_te, weights, hidden_dim=128, epochs=200, lr = 1e-2, batch=64, beta1=0.9, beta2=0.999, using_adam=True, device='gpu')
     

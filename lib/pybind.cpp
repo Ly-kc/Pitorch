@@ -118,7 +118,9 @@ Tensor MulScalar_wrapper(Tensor& input1, float input2){
 Tensor EwiseMul_wrapper(Tensor& input1, Tensor& input2){
     return input1 * input2;
 }
-
+Tensor PowScalar_wrapper(Tensor& input1, float input2){
+    return input1.power(input2);
+}
 
 PYBIND11_MODULE(mytensor, m) {
     py::class_<Tensor>(m,"raw_pisor")
@@ -147,6 +149,7 @@ PYBIND11_MODULE(mytensor, m) {
     m.def("pEwiseDiv", &EwiseDiv_wrapper, "Divide two tensors");
     m.def("pMulScalar", &MulScalar_wrapper, "Multiply a tensor by a scalar");
     m.def("pEwiseMul", &EwiseMul_wrapper, "Multiply two tensors");
+    m.def("pPowScalar", &PowScalar_wrapper, "Power a tensor by a scalar");
 
 
     m.def("ReLU_forward", &relu_forward_wrapper, "ReLU Module forward propagation function");

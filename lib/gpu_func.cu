@@ -12,6 +12,19 @@ class CUDAMempoolAttributeSetter {
         }
 } _setter;
 
+
+
+__global__ void power_kernel(float* dest, float val, int n)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    while (i < n)
+    {
+        dest[i] = powf(dest[i], val);
+        i += stride;
+    }
+}
+
 __global__ void add_kernel(float* dest, const float* src, int n)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -405,6 +418,13 @@ __global__ void cross_entropy_with_softmax_backward_kernel(const float* pred_pro
     }
 }
 
+
+void power_gpu(float*dest, float val, int n)
+{
+    int BlockNum = CudaGetBlocks(n);
+    power_kernel<<<BlockNum, BlockSize>>>(dest, val, n);
+    sync_and_check_cuda_error(); 
+}
 void add_gpu(float* dest, const float* src, int n)
 {
     int BlockNum = CudaGetBlocks(n);

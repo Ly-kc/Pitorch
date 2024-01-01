@@ -48,7 +48,7 @@ static CublasHandleCreator cublasHandle;
 
 
 void cout_gpu(const float* src, int n);
-
+void power_gpu(float*dest, float val, int n);
 void add_gpu(float* dest, const float* src, int n);
 void dec_gpu(float* dest, const float* src, int n);
 void dot_gpu(float* dest, const float* src, int n);

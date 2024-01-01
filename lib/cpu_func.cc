@@ -4,6 +4,15 @@
 
 #include <omp.h>
 
+void power_cpu(float* dest, float src, int n)
+{
+    #pragma omp parallel for schedule(static) collapse(1)
+    for(int i=0;i<n;i++)
+    {
+        dest[i]=pow(dest[i],src);
+    }
+}
+
 void add_cpu(float* dest, const float* src, int n)
 {
     #pragma omp parallel for schedule(static) collapse(1)

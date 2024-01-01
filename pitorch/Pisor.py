@@ -6,14 +6,14 @@ import numpy as np
 from typing import List, Optional, Tuple, Union
 from basic_operator import Op, Value
 from mytensor import raw_pisor
-from mytensor import pEwiseAdd,pAddScalar,pEwiseMul,pMulScalar,pEwiseDiv,pDivScalar,pEwiseSub,pSubScalar
+from mytensor import pEwiseAdd,pAddScalar,pEwiseMul,pMulScalar,pEwiseDiv,pDivScalar,pEwiseSub,pSubScalar,pPowScalar
 from mytensor import ReLU_forward, ReLU_backward, Sigmoid_forward, Sigmoid_backward, fc_forward, fc_backward
 from mytensor import Convolution_forward, Convolution_backward, Pooling_forward, Pooling_backward
 from mytensor import Softmax_forward, Crossentropy_forward, Softmax_Crossentropy_backward
 
 from autodiff import back_propgation
 
-PRINT_FAKE_GPU = False
+PRINT_FAKE_GPU = True
 
 '''
 cached_data:raw_pisor
@@ -348,12 +348,13 @@ class PowerScalar(TensorOp):
         self.scalar = scalar
 
     def compute(self, a: raw_pisor) -> raw_pisor:
-        if(a.device == 'cpu'):
-            return raw_pisor(a.numpy() ** self.scalar)
-        else:
-            # raise NotImplementedError()
-            if(PRINT_FAKE_GPU): print('fake gpu implementation: PowerScalar')
-            return raw_pisor(a.numpy() ** self.scalar, 'gpu')
+        # if(a.device == 'cpu'):
+        #     return raw_pisor(a.numpy() ** self.scalar)
+        # else:
+        #     # raise NotImplementedError()
+        #     if(PRINT_FAKE_GPU): print('fake gpu implementation: PowerScalar')
+        #     return raw_pisor(a.numpy() ** self.scalar, 'gpu')
+        return pPowScalar(a, self.scalar)
         
     def gradient(self, out_grad, node):
         if(self.scalar == 0):

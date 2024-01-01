@@ -2,6 +2,7 @@
 #include<iostream>
 #include<cmath>
 
+void power_cpu(float* dest, float src, int n);
 void add_cpu(float* dest, const float* src, int n);
 void dec_cpu(float* dest, const float* src, int n);
 void dot_cpu(float* dest, const float* src, int n);
