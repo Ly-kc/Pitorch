@@ -47,7 +47,7 @@ void Memory_Manager::sub_refcount()
         }
         else if(device == "gpu")
         {
-            cudaFree(data);
+            CHECK(cudaFree(data));
             delete refcount;
         }
         // std::cout << "delete data at "<< data << std::endl;
@@ -107,8 +107,9 @@ Tensor::Tensor(std::vector<int>& _shape, std::string _device):shape(_shape), dev
     }
     else if(device == "gpu")
     {
-        cudaMalloc((void**)&data, element_num*sizeof(float));
+        CHECK(cudaMalloc((void**)&data, element_num*sizeof(float)));
         fill_gpu(data, 0, element_num);
+        sync_and_check_cuda_error();
     }
     else
     {
@@ -143,8 +144,8 @@ Tensor::Tensor(std::vector<int>& _shape, float* _data, std::string _device):shap
     }
     else if(device == "gpu")
     {
-        cudaMalloc((void**)&data, element_num*sizeof(float));
-        cudaMemcpy(data, _data, element_num*sizeof(float), cudaMemcpyHostToDevice);
+        CHECK(cudaMalloc((void**)&data, element_num*sizeof(float)));
+        CHECK(cudaMemcpy(data, _data, element_num*sizeof(float), cudaMemcpyHostToDevice));
     }
     else
     {
@@ -181,8 +182,9 @@ Tensor::Tensor(std::vector<int>& _shape, float scalar, std::string _device):shap
     }
     else if(device == "gpu")
     {
-        cudaMalloc((void**)&data, element_num*sizeof(float));
+        CHECK(cudaMalloc((void**)&data, element_num*sizeof(float)));
         fill_gpu(data, scalar, element_num);
+        sync_and_check_cuda_error();
     }
     else
     {
@@ -218,8 +220,8 @@ Tensor::Tensor(const pybind11::array_t<float>& arr, std::string _device)
     }
     else if(device == "gpu")
     {
-        cudaMalloc((void**)&data, arr.size()*sizeof(float));
-        cudaMemcpy(data, arr.data(), arr.size()*sizeof(float), cudaMemcpyHostToDevice);
+        CHECK(cudaMalloc((void**)&data, arr.size()*sizeof(float)));
+        CHECK(cudaMemcpy(data, arr.data(), arr.size()*sizeof(float), cudaMemcpyHostToDevice));
     }
     else
     {
@@ -257,7 +259,7 @@ pybind11::array_t<float> Tensor::to_numpy() const
     }
     else if(device == "gpu")
     {
-        cudaMemcpy(ptr, data, element_num*sizeof(float), cudaMemcpyDeviceToHost);
+        CHECK(cudaMemcpy(ptr, data, element_num*sizeof(float), cudaMemcpyDeviceToHost));
     }
     return arr;
 }
@@ -269,7 +271,7 @@ void Tensor::_cpu()
     else if(device == "gpu")
     {
         float* temp = new float[element_num];
-        cudaMemcpy(temp, data, element_num*sizeof(float), cudaMemcpyDeviceToHost);
+        CHECK(cudaMemcpy(temp, data, element_num*sizeof(float), cudaMemcpyDeviceToHost));
         data = temp;
         manager.reset(data,"cpu"); 
     }
@@ -284,8 +286,8 @@ void Tensor::_gpu()
     else if(device == "cpu")
     {
         float* temp;
-        cudaMalloc((void**)&temp, element_num*sizeof(float));
-        cudaMemcpy(temp, data, element_num*sizeof(float), cudaMemcpyHostToDevice);
+        CHECK(cudaMalloc((void**)&temp, element_num*sizeof(float)));
+        CHECK(cudaMemcpy(temp, data, element_num*sizeof(float), cudaMemcpyHostToDevice));
         data = temp;
         manager.reset(data,"gpu");
     }
@@ -459,8 +461,8 @@ Tensor Tensor::copy() const
     }
     else if(device == "gpu")
     {
-        cudaMalloc((void**)&(res.data), element_num*sizeof(float));
-        cudaMemcpy(res.data, data, element_num*sizeof(float), cudaMemcpyDeviceToDevice);
+        CHECK(cudaMalloc((void**)&(res.data), element_num*sizeof(float)));
+        CHECK(cudaMemcpy(res.data, data, element_num*sizeof(float), cudaMemcpyDeviceToDevice));
     }
     res.manager.reset(res.data, device);
     return res;
@@ -475,6 +477,7 @@ Tensor Tensor::operator+(const Tensor& other){
     else
     {
         add_gpu(res.data, other.data, element_num);
+        sync_and_check_cuda_error();
     }
     return res;
 }
@@ -486,6 +489,7 @@ Tensor Tensor::operator-(const Tensor& other){
     else
     {
         dec_gpu(res.data, other.data, element_num);
+        sync_and_check_cuda_error();
     }
     return res;
 }
@@ -497,6 +501,7 @@ Tensor Tensor::operator*(const Tensor& other){
     else
     {
         dot_gpu(res.data, other.data, element_num);
+        sync_and_check_cuda_error();
     }
     return res;
 }
@@ -508,6 +513,7 @@ Tensor Tensor::operator/(const Tensor& other){
     else
     {
         div_gpu(res.data, other.data, element_num);
+        sync_and_check_cuda_error();
     }
     return res;
 }
@@ -518,6 +524,7 @@ Tensor Tensor::operator+(float other){
     else
     {
         add_gpu(res.data, other, element_num);
+        sync_and_check_cuda_error();
     }
     return res;
 }
@@ -528,6 +535,7 @@ Tensor Tensor::operator-(float other){
     else
     {
         dec_gpu(res.data, other, element_num);
+        sync_and_check_cuda_error();
     }  
     return res;
 }
@@ -538,6 +546,7 @@ Tensor Tensor::operator*(float other){
     else
     {
         dot_gpu(res.data, other, element_num);
+        sync_and_check_cuda_error();
     }
     return res;
 }
@@ -547,6 +556,7 @@ Tensor Tensor::operator/(float other){
         div_cpu(res.data, other, element_num);
     else
         div_gpu(res.data, other, element_num);
+        sync_and_check_cuda_error();
     return res;
 }
 void Tensor::operator+=(const Tensor& other){
@@ -555,6 +565,7 @@ void Tensor::operator+=(const Tensor& other){
         add_cpu(data, other.data, element_num);
     else
         add_gpu(data, other.data, element_num);
+        sync_and_check_cuda_error();
 }
 void Tensor::operator-=(const Tensor& other){
     assert(device == other.device);
@@ -562,6 +573,7 @@ void Tensor::operator-=(const Tensor& other){
         dec_cpu(data, other.data, element_num);
     else
         dec_gpu(data, other.data, element_num);
+        sync_and_check_cuda_error();
 }
 void Tensor::operator*=(const Tensor& other){
     assert(device == other.device);
@@ -569,6 +581,7 @@ void Tensor::operator*=(const Tensor& other){
         dot_cpu(data, other.data, element_num);
     else
         dot_gpu(data, other.data, element_num);
+        sync_and_check_cuda_error();
 }
 void Tensor::operator/=(const Tensor& other){
     assert(device == other.device);
@@ -576,30 +589,35 @@ void Tensor::operator/=(const Tensor& other){
         div_cpu(data, other.data, element_num);
     else
         div_gpu(data, other.data, element_num);
+        sync_and_check_cuda_error();
 }
 void Tensor::operator+=(float other){
     if(device == "cpu")
         add_cpu(data, other, element_num);
     else
         add_gpu(data, other, element_num);
+        sync_and_check_cuda_error();
 }
 void Tensor::operator-=(float other){
     if(device == "cpu")
         dec_cpu(data, other, element_num);
     else
         dec_gpu(data, other, element_num);
+        sync_and_check_cuda_error();
 }
 void Tensor::operator*=(float other){
     if(device == "cpu")
         dot_cpu(data, other, element_num);
     else
         dot_gpu(data, other, element_num);
+        sync_and_check_cuda_error();
 }
 void Tensor::operator/=(float other){
     if(device == "cpu")
         div_cpu(data, other, element_num);
     else
         div_gpu(data, other, element_num);
+        sync_and_check_cuda_error();
 }
 
 void Tensor::operator=(const Tensor& other){
@@ -610,13 +628,14 @@ void Tensor::operator=(const Tensor& other){
     if(device == "cpu")
         memcpy(data, other.data, element_num*sizeof(float));
     else
-        cudaMemcpy(data, other.data, element_num*sizeof(float), cudaMemcpyDeviceToDevice);
+        CHECK(cudaMemcpy(data, other.data, element_num*sizeof(float), cudaMemcpyDeviceToDevice));
 }
 void Tensor::operator=(float other){
     if(device == "cpu")
         fill_cpu(data, other, element_num);
     else
         fill_gpu(data, other, element_num);
+        sync_and_check_cuda_error();
 }
 
 //[[[],[]],[[],[]]]
@@ -667,6 +686,7 @@ void Tensor::fill(float scalar)
     else if(device == "gpu")
     {
         fill_gpu(data, scalar, element_num);
+        sync_and_check_cuda_error();
     }
 }
 

@@ -1,7 +1,12 @@
 #include "cpu_func.h"
 
+#include <cstring>
+
+#include <omp.h>
+
 void add_cpu(float* dest, const float* src, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] += src[i];
@@ -9,6 +14,7 @@ void add_cpu(float* dest, const float* src, int n)
 }
 void dec_cpu(float* dest, const float* src, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] -= src[i];
@@ -16,6 +22,7 @@ void dec_cpu(float* dest, const float* src, int n)
 }
 void dot_cpu(float* dest, const float* src, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] *= src[i];
@@ -23,6 +30,7 @@ void dot_cpu(float* dest, const float* src, int n)
 }
 void div_cpu(float* dest, const float* src, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] /= src[i];
@@ -31,6 +39,7 @@ void div_cpu(float* dest, const float* src, int n)
 
 void add_cpu(float* dest, float scalar, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] += scalar;
@@ -39,6 +48,7 @@ void add_cpu(float* dest, float scalar, int n)
 
 void dec_cpu(float* dest, float scalar, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] -= scalar;
@@ -47,6 +57,7 @@ void dec_cpu(float* dest, float scalar, int n)
 
 void dot_cpu(float* dest, float scalar, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] *= scalar;
@@ -54,6 +65,7 @@ void dot_cpu(float* dest, float scalar, int n)
 }
 void div_cpu(float* dest, float scalar, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] /= scalar;
@@ -62,6 +74,7 @@ void div_cpu(float* dest, float scalar, int n)
 
 void fill_cpu(float* dest, float val, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] = val;
@@ -70,6 +83,7 @@ void fill_cpu(float* dest, float val, int n)
 
 void copy_cpu(float* dest, float* src, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] = src[i];
@@ -80,6 +94,7 @@ void copy_cpu(float* dest, float* src, int n)
 
 void relu_cpu(float* dest, const float* src, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] = src[i] > 0 ? src[i] : 0;
@@ -89,6 +104,7 @@ void relu_cpu(float* dest, const float* src, int n)
 
 void backward_relu_cpu(float* dest, const float* forward_input, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] = forward_input[i] > 0 ? 1 : 0;
@@ -98,6 +114,7 @@ void backward_relu_cpu(float* dest, const float* forward_input, int n)
 
 void sigmoid_cpu(float* dest, const float* src, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] = 1.0 / (1.0 + exp(-src[i]));
@@ -106,6 +123,7 @@ void sigmoid_cpu(float* dest, const float* src, int n)
 
 void backward_sigmoid_cpu(float* dest, const float* src, int n)
 {
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < n; i++)
     {
         dest[i] = src[i] * (1 - src[i]);
@@ -116,6 +134,7 @@ void gemm_cpu(bool transa, bool transb, const float* A, const float* B, float* C
 {
     //C = alpha* op(A) @ op(B) + beta*C
     //op(A)=M*K, op(B)=K*N, C=M*N
+    #pragma omp parallel for schedule(static) collapse(2)
     for(int i=0;i<M;i++)
     {
         for(int j=0;j<N;j++)
@@ -219,6 +238,7 @@ void conv2d_forward_cpu(const float* input, float* output, const float* weights,
         out_stride2 = H_out * W_out,
         out_stride3 = W_out;
 
+    #pragma omp parallel for schedule(static) collapse(4)
     for(int b=0;b<B;b++)
         for(int c_out=0;c_out<C_out;c_out++)
             for(int h_out=0;h_out<H_out;h_out++)
@@ -255,12 +275,32 @@ void conv2d_backward_cpu(const float* grad_y, const float* input_x, const float*
         out_stride2 = H_out * W_out,
         out_stride3 = W_out;
     //aggregate gradient in every place of x with multilevel loop
+    
+    #pragma omp parallel for schedule(static) collapse(2)
     for(int b=0;b<B;b++)
-        for(int c_out=0;c_out<C_out;c_out++)
-            for(int h_out=0;h_out<H_out;h_out++)
-                for(int w_out=0;w_out<W_out;w_out++)
-                {
-                    for(int c_in=0;c_in<C_in;c_in++)
+        for(int c_in=0;c_in<C_in;c_in++)
+            for(int c_out=0;c_out<C_out;c_out++)
+                for(int h_out=0;h_out<H_out;h_out++)
+                    for(int w_out=0;w_out<W_out;w_out++)
+                    {
+                        for(int k_h=0;k_h<K;k_h++)
+                            for(int k_w=0;k_w<K;k_w++)
+                            {
+                                int h_in = h_out * stride + k_h - padding;
+                                int w_in = w_out * stride + k_w - padding;
+                                if(h_in>=0 && h_in<H && w_in>=0 && w_in<W) {
+                                    grad_x[b*in_stride1+c_in*in_stride2+h_in*in_stride3+w_in]+=
+                                        grad_y[b*out_stride1+c_out*out_stride2+h_out*out_stride3+w_out]*weights[c_out*C_in*K*K+c_in*K*K+k_h*K+k_w];
+                                }
+                            }
+                    }
+    #pragma omp parallel for schedule(static) collapse(2)
+    for(int c_out=0;c_out<C_out;c_out++)
+        for(int c_in=0;c_in<C_in;c_in++)
+            for(int b=0;b<B;b++)
+                for(int h_out=0;h_out<H_out;h_out++)
+                    for(int w_out=0;w_out<W_out;w_out++)
+                    {
                         for(int k_h=0;k_h<K;k_h++)
                             for(int k_w=0;k_w<K;k_w++)
                             {
@@ -268,12 +308,17 @@ void conv2d_backward_cpu(const float* grad_y, const float* input_x, const float*
                                 int w_in = w_out * stride + k_w - padding;
                                 if(h_in>=0 && h_in<H && w_in>=0 && w_in<W)
                                 {
-                                    grad_x[b*in_stride1+c_in*in_stride2+h_in*in_stride3+w_in]+=
-                                        grad_y[b*out_stride1+c_out*out_stride2+h_out*out_stride3+w_out]*weights[c_out*C_in*K*K+c_in*K*K+k_h*K+k_w];
                                     grad_weights[c_out*C_in*K*K+c_in*K*K+k_h*K+k_w]+=
                                         grad_y[b*out_stride1+c_out*out_stride2+h_out*out_stride3+w_out]*input_x[b*in_stride1+c_in*in_stride2+h_in*in_stride3+w_in];
                                 }
                             }
+                    }
+    #pragma omp parallel for schedule(static) collapse(1)
+    for(int c_out=0;c_out<C_out;c_out++)
+        for(int b=0;b<B;b++)
+            for(int h_out=0;h_out<H_out;h_out++)
+                for(int w_out=0;w_out<W_out;w_out++)
+                {
                     grad_bias[c_out]+=grad_y[b*out_stride1+c_out*out_stride2+h_out*out_stride3+w_out];
                 }
 }
@@ -293,6 +338,7 @@ void maxpool_forward_cpu(const float* input, float* output, float* mask, int B, 
         out_stride3 = W_out;
 
     memset(mask,0,sizeof(float)*B*C*H*W);
+    #pragma omp parallel for schedule(static) collapse(4)
     for(int b=0;b<B;b++)
         for(int c=0;c<C;c++)
             for(int h_out=0;h_out<H_out;h_out++)
@@ -331,6 +377,7 @@ void maxpool_backward_cpu(const float* grad_y, const float* mask, float* grad_x,
     int out_stride1 = C * H_out * W_out,
         out_stride2 = H_out * W_out,
         out_stride3 = W_out;
+    #pragma omp parallel for schedule(static) collapse(6)
     for(int b=0;b<B;b++)
         for(int c=0;c<C;c++)
             for(int h_out=0;h_out<H_out;h_out++)
@@ -365,6 +412,7 @@ void softmax_forward_cpu(const float* input, float* output, int N, int C)
         output[i] = exp(input[i]-max);
         esum[i/C] += output[i];
     }
+    #pragma omp parallel for schedule(static) collapse(1)
     for(int i = 0 ; i < element_num ; i++)
     {
         output[i] /= esum[i/C];
@@ -377,10 +425,12 @@ void cross_entropy_forward_cpu(const float* pred_prob, const float* gt_prob, flo
     //gt_prob: N*C
     //output: 1
     float loss = 0;
+    #pragma omp parallel for schedule(static) collapse(2)
     for(int i = 0 ; i < N ; i ++)
         for(int j = 0 ; j < C ; j ++)
         {
-            float log_pred = log(pred_prob[i*C + j])/log(2);
+            float log_pred = log(pred_prob[i*C + j]);
+            #pragma omp critical
             loss -= log_pred * gt_prob[i*C + j];
         }
     *output = loss/N;
@@ -389,6 +439,7 @@ void cross_entropy_forward_cpu(const float* pred_prob, const float* gt_prob, flo
 void cross_entropy_with_softmax_backward_cpu(const float* pred_prob, const float* gt_prob, float* grad, int N, int C)
 {
     //pred_prob, gt_prob, grad: N*C
+    #pragma omp parallel for schedule(static) collapse(2)
     for(int i = 0 ; i < N ; i ++)
         for(int j = 0 ; j < C ; j ++)
         {

@@ -7,14 +7,16 @@ from typing import List, Optional, Tuple, Union
 from basic_operator import Op, Value
 from mytensor import raw_pisor
 from mytensor import pEwiseAdd,pAddScalar,pEwiseMul,pMulScalar,pEwiseDiv,pDivScalar,pEwiseSub,pSubScalar
-from mytensor import ReLU_forward, ReLU_backward
+from mytensor import ReLU_forward, ReLU_backward, Sigmoid_forward, Sigmoid_backward, fc_forward, fc_backward
+from mytensor import Convolution_forward, Convolution_backward, Pooling_forward, Pooling_backward
+from mytensor import Softmax_forward, Crossentropy_forward, Softmax_Crossentropy_backward
+
 from autodiff import back_propgation
 
+PRINT_FAKE_GPU = False
 
 '''
-Tensor(最终要换成Pisor)内含raw_pisor,并在必要时转为numpy
-cace_data:raw_pisor
-dtype暂时废弃
+cached_data:raw_pisor
 divice完全存储在raw_pisor中,Tensor不设self.device
 '''
 class pisor(Value):
@@ -93,8 +95,8 @@ class pisor(Value):
 
     @staticmethod
     def _raw_pisor_from_numpy(numpy_array, device='cpu', dtype=np.float32):
-        if(numpy_array.shape == ()):
-            numpy_array =numpy_array.reshape(1)
+        # if(numpy_array.shape == ()):
+        #     numpy_array = numpy_array.reshape(1)
         return raw_pisor(array=numpy_array, device=device)
 
     @staticmethod
@@ -145,7 +147,7 @@ class pisor(Value):
             if(self.cached_data.device == 'cpu'):
                 self.cached_data = value.realize_cached_data().cpu()
             else:
-                self.cached_data = value.realize_cached_data().cuda()
+                self.cached_data = value.realize_cached_data().gpu()
         elif(isinstance(value, np.ndarray)):
             self.cached_data = raw_pisor(value, self.cached_data.device)
         elif(isinstance(value, raw_pisor)):
@@ -350,7 +352,7 @@ class PowerScalar(TensorOp):
             return raw_pisor(a.numpy() ** self.scalar)
         else:
             # raise NotImplementedError()
-            print('fake gpu implementation: PowerScalar')
+            if(PRINT_FAKE_GPU): print('fake gpu implementation: PowerScalar')
             return raw_pisor(a.numpy() ** self.scalar, 'gpu')
         
     def gradient(self, out_grad, node):
@@ -374,7 +376,7 @@ class EWisePow(TensorOp):
             return raw_pisor(a.numpy()**b.numpy())
         else:
             # raise NotImplementedError()
-            print('fake gpu implementation: EWisePow')
+            if(PRINT_FAKE_GPU): print('fake gpu implementation: EWisePow')
             return raw_pisor(a.numpy()**b.numpy(), 'gpu')
 
     def gradient(self, out_grad, node):
@@ -444,7 +446,7 @@ class Transpose(TensorOp):
             return raw_pisor(b)
         else:
             # raise NotImplementedError()
-            print('fake gpu implementation: Transpose')
+            if(PRINT_FAKE_GPU): print('fake gpu implementation: Transpose')
             new_axes = list(range(len(a.shape)))
 
             if(self.axes is not None):
@@ -504,7 +506,7 @@ class BroadcastTo(TensorOp):
             return raw_pisor(res)
         else:
             # raise NotImplementedError()
-            print('fake gpu implementation: BroadcastTo')
+            if(PRINT_FAKE_GPU): print('fake gpu implementation: BroadcastTo')
             res = np.zeros(self.shape)
             res += a.numpy()
             return raw_pisor(res,'gpu')
@@ -537,7 +539,7 @@ class Summation(TensorOp):
             return raw_pisor(np.sum(a.numpy(), axis=self.axes,keepdims=self.keep_dims))
         else:
             # raise NotImplementedError()
-            print('fake gpu implementation: Summation')
+            if(PRINT_FAKE_GPU): print('fake gpu implementation: Summation')
             return raw_pisor(np.sum(a.numpy(), axis=self.axes,keepdims=self.keep_dims), 'gpu')
         
     def gradient(self, out_grad, node):
@@ -572,7 +574,7 @@ class MatMul(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(np.matmul(a.numpy(), b.numpy()))
         else:
-            print('fake gpu implementation: MatMul')
+            if(PRINT_FAKE_GPU): print('fake gpu implementation: MatMul')
             return raw_pisor(np.matmul(a.numpy(), b.numpy()), 'gpu')
         
     def gradient(self, out_grad, node):
@@ -603,7 +605,7 @@ class Log(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(np.log(a.numpy()))
         else:
-            print('fake gpu implementation: Log')
+            if(PRINT_FAKE_GPU): print('fake gpu implementation: Log')
             return raw_pisor(np.log(a.numpy()), 'gpu')
                 
     def gradient(self, out_grad, node):
@@ -618,7 +620,7 @@ class Exp(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(np.exp(a.numpy()))        
         else:
-            print('fake gpu implementation: Exp')
+            if(PRINT_FAKE_GPU): print('fake gpu implementation: Exp')
             return raw_pisor(np.exp(a.numpy()), 'gpu')
         
     def gradient(self, out_grad, node):
@@ -656,7 +658,7 @@ class Index(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(a.numpy()[...,self.index])
         else:
-            print('fake gpu implementation: Index')
+            if(PRINT_FAKE_GPU): print('fake gpu implementation: Index')
             return raw_pisor(a.numpy()[...,self.index], 'gpu')
         
     def gradient(self, out_grad, node):
@@ -698,7 +700,7 @@ class Max(TensorOp):
         if(a.device == 'cpu'):
             return raw_pisor(np.max(a.numpy(), axis=self.axis,keepdims=self.keep_dims))
         else:
-            print('fake gpu implementation: Max')
+            if(PRINT_FAKE_GPU): print('fake gpu implementation: Max')
             return raw_pisor(np.max(a.numpy(), axis=self.axis,keepdims=self.keep_dims), 'gpu')
             
     def gradient(self, out_grad, node):
@@ -724,4 +726,74 @@ class Max(TensorOp):
             #out_grad:(n,1)  mask:(n,c)
             unsqueezed_out_grad = broadcast_to(out_grad, node.inputs[0].shape)  #(n,c)
             return unsqueezed_out_grad * mask
+
+class Fc(TensorOp):
+    def __init__(self):
+        pass
+    def compute(self, a, weight, bias):
+        return fc_forward(a, weight, bias)
     
+    def gradient(self, out_grad, node):
+        x_grad, weight_grad, bias_grad = fc_backward(out_grad.realize_cached_data(), 
+                                                    node.inputs[0].realize_cached_data(), 
+                                                    node.inputs[1].realize_cached_data(), 
+                                                    node.inputs[2].realize_cached_data()
+                                                    )
+        return pisor(x_grad), pisor(weight_grad), pisor(bias_grad)
+
+def fc(a, weight, bias):
+    return Fc()(a, weight, bias)
+
+
+class Conv(TensorOp):
+    def __init__(self, stride, padding):
+        self.stride = stride
+        self.padding = padding
+    
+    def compute(self, a, weight, bias):
+        return Convolution_forward(a, weight, bias, self.stride, self.padding)
+    
+    def gradient(self, out_grad, node):
+        grad_x, grad_weight, grad_bias = Convolution_backward(out_grad.realize_cached_data(), 
+                                                            node.inputs[0].realize_cached_data(), 
+                                                            node.inputs[1].realize_cached_data(), 
+                                                            node.inputs[2].realize_cached_data(), 
+                                                            self.stride, self.padding
+                                                            )
+        return pisor(grad_x), pisor(grad_weight), pisor(grad_bias)
+    
+def conv(a, weight, bias, stride, padding):
+    return Conv(stride, padding)(a, weight, bias)
+
+
+class Pool(TensorOp):
+    def __init__(self, stride):
+        self.stride = stride
+    
+    def compute(self, a):
+        res,mask = Pooling_forward(a, self.stride)
+        self.mask = mask
+        return res
+    
+    def gradient(self, out_grad, node):
+        return pisor(Pooling_backward(out_grad.realize_cached_data(), self.mask))
+    
+def pool(a, stride):
+    return Pool(stride)(a)
+
+class Softmax_with_Crossentropy(TensorOp):
+    def __init__(self, gt_prob:raw_pisor):
+        self.gt_prob = gt_prob
+    
+    def compute(self, perd_logits):
+        #perd_logits:(b,c)  gt_prob:(b,c) output:(1,)
+        pred_prob =  Softmax_forward(perd_logits)
+        return Crossentropy_forward(pred_prob, self.gt_prob)
+    
+    def gradient(self, out_grad, node):
+        #在此默认out_grad为1
+        partial_grad = Softmax_Crossentropy_backward(node.inputs[0].realize_cached_data(), self.gt_prob)  #(b,c)
+        return pisor(partial_grad)
+
+def softmax_with_cross_entropy(perd_logits, gt_prob):
+    return Softmax_with_Crossentropy(gt_prob)(perd_logits)

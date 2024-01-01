@@ -1,11 +1,15 @@
 #pragma once
 
+#define CHECK_CUDA_ERROR
+
+#include "gpu_func.h"
+#include "cpu_func.h"
+#include "utils.h"
+
 #include <pybind11/numpy.h>
 #include <string>
 #include <vector>
 #include <iostream>
-#include "gpu_func.h"
-#include "cpu_func.h"
 #include <assert.h>
 
 class Tensor;

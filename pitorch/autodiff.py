@@ -75,10 +75,10 @@ def back_propgation(output_tensor, out_grad):
     for node in node_list:
         node_to_grad[node] = []
     if(len(output_tensor.shape)==0):
-        node_to_grad[output_tensor] = [pisor.make_const(np.array(1))]  #相当于反向的输入，不需要记录梯度
+        node_to_grad[output_tensor] = [pisor(np.array(1), device=output_tensor.device)]  #相当于反向的输入，不需要记录梯度
     elif(len(output_tensor.shape)==1):
         assert(output_tensor.shape[0] == 1)
-        node_to_grad[output_tensor] = [pisor.make_const(np.array([1]))]
+        node_to_grad[output_tensor] = [pisor(np.array([1]), device=output_tensor.device)]
     else:
         assert(output_tensor.shape == out_grad.shape)
         node_to_grad[output_tensor] = [out_grad]
@@ -98,7 +98,8 @@ def back_propgation(output_tensor, out_grad):
         for grad in node_to_grad[onode][1:]:
             onode.grad = onode.grad + grad
         # print(onode.op, onode.shape, onode.grad.shape)
-        assert onode.grad.shape == onode.shape
+        if(onode.grad.shape != onode.shape):
+            raise Exception(f'shape not match: {onode.grad.shape} {onode.shape}')
         if(onode.is_leaf()): continue
         partial_gradients = onode.partial_gradients()
         # print('ax',[partial_gradients[i].shape for i in range(len(partial_gradients))])

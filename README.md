@@ -12,9 +12,8 @@ cd lib
 python setup.py develop
 ```
 ### running demo
-Here I present how to use my framework to conduct classification on Minist 
+Here I present how to use my framework to conduct classification on Minist dataset.
 ```
-dataset 
 cd pitorch
 python test_optimizer.py
 ```

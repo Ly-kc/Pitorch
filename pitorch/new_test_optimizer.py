@@ -70,11 +70,12 @@ def set_structure(n, hidden_dim, k, device = 'cpu'):
     return list(W1, W2)
     """
     # k = k.realize_cached_data()
-    W1 = pisor(np.random.randn(n, hidden_dim).astype(np.float32) / np.sqrt(hidden_dim), device=device)
-    W2 = pisor(np.random.randn(hidden_dim, k).astype(np.float32) / np.sqrt(k), device=device)
-    W_res = pisor(np.random.randn(n, k).astype(np.float32) / np.sqrt(k), device=device)
+    W1 = pisor(np.random.randn(hidden_dim, n).astype(np.float32) / np.sqrt(hidden_dim), device=device)
+    b1 = pisor(np.random.randn(hidden_dim).astype(np.float32) / np.sqrt(hidden_dim), device=device)
+    W2 = pisor(np.random.randn(k, hidden_dim).astype(np.float32) / np.sqrt(k), device=device)
+    b2 = pisor(np.random.randn(k).astype(np.float32) / np.sqrt(k), device=device)
     # weights = [W1, W2, W_res]
-    weights = [W1, W2]
+    weights = [W1,b1, W2,b2]
     
     global t,ms,vs
     t = 0
@@ -96,14 +97,10 @@ def forward(X, weights):
     W2 = weights[1]
     return np.maximum(X@W1,0)@W2
     """
-    W1 = weights[0]   
-    W2 = weights[1]
-    # W_res = weights[2]
-    
-    # output1 = relu(X@W1)@W2
-    # output2 = X@W_res
-    # return output1 + output2
-    return relu(X@W1)@W2
+    X = fc(X, weights[0], weights[1])
+    X = relu(X)
+    X = fc(X, weights[2], weights[3])
+    return X
 
 def softmax_loss(Z:pisor, y:pisor):
     """ 
@@ -118,34 +115,12 @@ def softmax_loss(Z:pisor, y:pisor):
     Returns:
         Average softmax loss over the sample.
     """
-    #如何仅凭手上有的算符计算softmax loss。。
-    #需要在Tensor里加入一个index算子，然后模仿下面的代码
-    #return -np.mean(np.log(np.exp(Z[np.arange(len(y)),y]) / np.sum(np.exp(Z), axis=1)))
-    # 先搞个（n，c）的mask（无需梯度），与z相乘，再sum最后一维得到（n，）
     batch_size = Z.shape[0]
-    #防止溢出，首先减去最大值
-    maxz = Z.max(axis=-1,keep_dims=True)  #(n,1)
-    maxz = broadcast_to(maxz, Z.shape)  #(n,c)
-    Z = Z - maxz
     
     mask = np.zeros(Z.shape,dtype=int)
     mask[list(range(batch_size)) ,y.numpy().astype(int)] = 1
-    masked_z = assign_mask(Z,mask) # (n,c)
-    zy = masked_z.sum(axes=-1)  # (n,)  
-    
-    sum_ez = exp(Z).sum(axes=-1)  # (n,)
-    ey = exp(zy)  # (n,)
-
-    loss = log(sum_ez/ey).sum(-1) / batch_size
-    # mask = np.zeros(Z.shape,dtype=int)
-    # mask[list(range(batch_size)) ,y.realize_cached_data()] = 1
-    # masked_z = assign_mask(Z,mask) # (n,c)
-    # zy = masked_z.sum(axes=-1,keep_dims=True)  # (n,1)
-    # print(zy.numpy()[0:10,0])
-    # zy = broadcast_to(zy, masked_z.shape) # (n,c)
-    # z_dis_exp = exp(Z - zy) # (n,c)
-    # z_dis_exp_sum = z_dis_exp.sum(axes=-1) # (n,)
-    # loss = log(z_dis_exp_sum).sum(-1) / batch_size
+    mask = raw_pisor(mask, device=Z.device)
+    loss = softmax_with_cross_entropy(Z, mask)
     
     return loss    
      
@@ -265,19 +240,19 @@ def train_nn(X_tr, y_tr, X_te, y_te, weights, hidden_dim = 500,
     #X,y: numpy array
     #weights: list of Tensor
     print("| Epoch | Train Loss | Train Err | Test Loss | Test Err |")
-    for epoch in range(epochs):
+    for epoch in tqdm.tqdm(range(epochs)):
         opti_epoch(X_tr, y_tr, weights, lr=lr, batch=batch, beta1=beta1, beta2=beta2, using_adam=using_adam,device=device)
         train_loss, train_err = loss_err(forward(pisor.make_const(X_tr,device=device), weights), pisor.make_const(y_tr, device=device))
         test_loss, test_err = loss_err(forward(pisor.make_const(X_te,device=device), weights), pisor.make_const(y_te, device=device))
         print("|  {:>4} |    {:.5f} |   {:.5f} |   {:.5f} |  {:.5f} |"\
-              .format(epoch, train_loss, train_err, test_loss, test_err))
+              .format(epoch, train_loss[0], train_err, test_loss[0], test_err))
 
 
 if __name__ == "__main__":
     X_tr, y_tr, X_te, y_te = parse_mnist() 
     weights = set_structure(X_tr.shape[1], 100, y_tr.max() + 1)
     ## using SGD optimizer 
-    train_nn(X_tr, y_tr, X_te, y_te, weights, hidden_dim=100, epochs=350, lr = 5e-6, batch=64, beta1=0.9, beta2=0.999, using_adam=False, device='cpu')
+    train_nn(X_tr, y_tr, X_te, y_te, weights, hidden_dim=100, epochs=350, lr = 1e-2, batch=64, beta1=0.9, beta2=0.999, using_adam=False, device='gpu')
     ## using Adam optimizer
     # train_nn(X_tr, y_tr, X_te, y_te, weights, hidden_dim=128, epochs=200, lr = 1e-4, batch=64, beta1=0.9, beta2=0.999, using_adam=True)
     

@@ -3,3 +3,5 @@ __pycache__
 /lib/*.egg-info
 /lib/build
 /lib/*.so
+
+*.nsys-rep

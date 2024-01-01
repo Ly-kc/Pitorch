@@ -122,6 +122,7 @@ void fc_backward(const Tensor* grad_y, const Tensor* input_x, const Tensor* weig
 
     std::string device = input_x->get_device();
     Tensor grad_x(x_shape, device);
+    // grad_x.print_information();
     Tensor grad_weight(w_shape, device);
     Tensor grad_bias(b_shape, device);
 

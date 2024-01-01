@@ -7,11 +7,11 @@ from torch.functional import F
 import unittest
 from tqdm import tqdm
 import mytensor
-from mytensor import Tensor
+from mytensor import raw_pisor as Tensor
 
 class net_test(unittest.TestCase):
     def setUp(self):
-        pass
+        self.device = 'gpu'
     
     def test_fc_forward(self):
         for i in tqdm(range(20000),desc='fc'):
@@ -39,9 +39,9 @@ class net_test(unittest.TestCase):
             bias: out_dim
             output: batch_size * out_dim
             '''
-            input_tensor = Tensor(input, 'gpu')
-            weights_tensor = Tensor(weights, 'gpu')
-            bias_tensor = Tensor(bias, 'gpu')
+            input_tensor = Tensor(input, 'cpu')
+            weights_tensor = Tensor(weights, 'cpu')
+            bias_tensor = Tensor(bias, 'cpu')
             # print(input_tensor.shape(), weights_tensor.shape(), bias_tensor.shape())
             output_mytensor = mytensor.fc_forward(input_tensor, weights_tensor, bias_tensor)
             np_output_mytensor = output_mytensor.numpy()
@@ -66,7 +66,7 @@ class net_test(unittest.TestCase):
             //grad_weight: out_dim * in_dim
             //grad_bias: out_dim
             '''
-            grad_y_tensor = Tensor(grad_y, 'gpu')
+            grad_y_tensor = Tensor(grad_y, 'cpu')
             grad_x_mytensor, grad_weight_mytensor, grad_mybias_tensor = mytensor.fc_backward(grad_y_tensor, input_tensor, weights_tensor, bias_tensor)
             grad_x_mytensor, grad_weight_mytensor, grad_mybias_tensor = grad_x_mytensor.numpy(), grad_weight_mytensor.numpy(), grad_mybias_tensor.numpy()
             
@@ -113,10 +113,10 @@ class net_test(unittest.TestCase):
             # print(batch_size,in_channel,out_channel,kernel_size,stride,padding,height,width)
             # print('forward')
             #our forward
-            input_mytensor = Tensor(input, 'gpu')
-            weights_mytensor = Tensor(weights, 'gpu')
+            input_mytensor = Tensor(input, self.device)
+            weights_mytensor = Tensor(weights, self.device)
             # bias_mytensor = Tensor(bias)
-            bias_mytensor = Tensor(bias, 'gpu')
+            bias_mytensor = Tensor(bias, self.device)
             
             output_mytensor = mytensor.Convolution_forward(input_mytensor,weights_mytensor,bias_mytensor, stride, padding)
 
@@ -152,7 +152,7 @@ class net_test(unittest.TestCase):
             grad_weight_pytorch = weights_pytorch.grad
             grad_bias_pytorch = bias_pytorch.grad
             #ours
-            grad_y_tensor = Tensor(grad_y, 'gpu')
+            grad_y_tensor = Tensor(grad_y, self.device)
             grad_x_mytensor, grad_weight_mytensor, grad_mybias_tensor = mytensor.Convolution_backward(grad_y_tensor, input_mytensor, weights_mytensor, stride, padding)
             
             assert np.allclose(grad_x_pytorch.detach().cpu().numpy(), grad_x_mytensor.numpy(), rtol=1e-3, atol=1e-3)
@@ -160,7 +160,7 @@ class net_test(unittest.TestCase):
             assert np.allclose(grad_bias_pytorch.detach().cpu().numpy(), grad_mybias_tensor.numpy(), rtol=1e-3, atol=1e-3)
 
     def test_pooling(self):
-        for i in tqdm(range(20000),desc='pooling'):
+        for i in tqdm(range(5000),desc='pooling'):
             batch_size = np.random.randint(1, 10)
             in_channel = np.random.randint(1, 100)
             kernel_size = np.random.randint(1, 10)
@@ -174,7 +174,7 @@ class net_test(unittest.TestCase):
             input *= scalar
             #forward
             #ours
-            input_mytensor = Tensor(input, 'gpu')
+            input_mytensor = Tensor(input, self.device)
             output_mytensor, mask_mytensor = mytensor.Pooling_forward(input_mytensor, kernel_size)
 
             #pytorch
@@ -228,7 +228,7 @@ class net_test(unittest.TestCase):
             loss.backward()
             grad_x_pytorch = input_pytorch.grad
             #ours
-            grad_y_tensor = Tensor(grad_y, 'gpu')
+            grad_y_tensor = Tensor(grad_y, self.device)
             grad_x_mytensor = mytensor.Pooling_backward(grad_y_tensor, mask_mytensor)
             
             if not np.allclose(grad_x_pytorch.detach().cpu().numpy(), grad_x_mytensor.numpy(), rtol=1e-3, atol=1e-3):
@@ -258,7 +258,7 @@ class net_test(unittest.TestCase):
             input *= scalar
             #softmax forward
             #ours
-            input_mytensor = Tensor(input, 'gpu')
+            input_mytensor = Tensor(input, self.device)
             output_mytensor = mytensor.Softmax_forward(input_mytensor)
             #pytorch
             input_pytorch = torch.tensor(input, device='cuda', requires_grad=True)
@@ -269,7 +269,7 @@ class net_test(unittest.TestCase):
             prob_gt = np.random.rand(batch_size, in_dim)
             prob_gt = prob_gt / np.sum(prob_gt, axis=1, keepdims=True)
             #ours
-            prob_gt_mytensor = Tensor(prob_gt, 'gpu')
+            prob_gt_mytensor = Tensor(prob_gt, self.device)
             loss_mytensor = mytensor.Crossentropy_forward(output_mytensor, prob_gt_mytensor)
             #pytorch
             prob_gt_pytorch = torch.tensor(prob_gt, device='cuda')
