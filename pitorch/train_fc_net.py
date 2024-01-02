@@ -177,9 +177,9 @@ def loss_err(h,y):
 def train_nn(X_tr, y_tr, X_te, y_te, hidden_dim = 500,
              epochs=10, lr=0.5, batch=100, beta1=0.9, beta2=0.999, using_adam=False, device='cpu'):
     
+    print('start training on ' + device)
     n, k = X_tr.shape[1], y_tr.max() + 1
     weights = set_structure(n, hidden_dim, k, device=device)
-    np.random.seed(0)
     
     #weights: list of Tensor
     print("| Epoch | Train Loss | Train Err | Test Loss | Test Err |")

@@ -2,12 +2,8 @@ from autodiff import *
 from Pisor import *
 import numpy as np
 
-import torch
-from torch import nn
-from torch.utils.data import DataLoader
 from torchvision import datasets
 from torchvision.transforms import ToTensor, Lambda
-from torch.nn import functional as F
 import matplotlib.pyplot as plt
 import tqdm
 
@@ -179,13 +175,12 @@ def train_nn(X_tr, y_tr, X_te, y_te, hidden_dim = 500,
              epochs=10, lr=0.5, batch=100, beta1=0.9, beta2=0.999, using_adam=False, device='cpu'):
     
     n, k = X_tr.shape[1], y_tr.max() + 1
-    print(X_tr.shape)
-    print(device)
+    print('start training on '+ device)
     np.random.seed(0)
     weights = set_structure(n, k, device=device)
     #X,y: numpy array
     #weights: list of Tensor
-    print("| Epoch | Train Loss | Train Err | Test Loss | Test Err |")
+    print("|  Epoch | Test Loss | Test Err |")
     for epoch in tqdm.tqdm(range(epochs)):
         opti_epoch(X_tr, y_tr, weights, lr=lr, batch=batch, beta1=beta1, beta2=beta2, using_adam=using_adam,device=device)
         # train_loss, train_err = loss_err(forward(pisor.make_const(X_tr,device=device), weights), pisor.make_const(y_tr, device=device))
