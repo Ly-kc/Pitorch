@@ -2,7 +2,7 @@
 The first AI framewrok designed by myself, which is the final project of class "Programming in Artificial Intelligence"
 
 ## Usage
-### installation
+### Installation
 ```
 conda create -n pitorch python=3.9
 conda activate pitorch
@@ -11,8 +11,8 @@ conda activate pitorch
 cd lib
 python setup.py develop
 ```
-### running demo
-Here I present how to use my framework to conduct classification on Minist dataset.
+### Running demo
+Here I present how to use my framework to conduct classification on MNIST.
 ```
 cd pitorch
 python test_optimizer.py

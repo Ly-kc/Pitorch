@@ -49,6 +49,9 @@ void Memory_Manager::sub_refcount()
         {
             CHECK(cudaFreeAsync(data, cudaStreamDefault));
             delete refcount;
+        } else {
+            printf("Unknown device type: %s\n", device.c_str());
+            assert(0);
         }
         // std::cout << "delete data at "<< data << std::endl;
     }
@@ -143,9 +146,9 @@ Tensor::Tensor(std::vector<int>& _shape, float* _data, std::string _device):shap
     }
     else if(device == "gpu")
     {
-        CHECK(cudaMallocAsync((void**)&data, element_num*sizeof(float), cudaStreamDefault, cudaStreamDefault));
+        CHECK(cudaMallocAsync((void**)&data, element_num*sizeof(float), cudaStreamDefault));
         CHECK(cudaMemcpy(data, _data, element_num*sizeof(float), cudaMemcpyHostToDevice));
-    }
+    }   
     else
     {
         std::cout << "device error 2 when initialize tensor: " << device << std::endl;
@@ -305,6 +308,7 @@ Tensor Tensor::gpu() const
 {
     assert(device == "cpu" || device == "gpu");
     Tensor gpu_tensor = this->copy();
+    // Tensor gpu_tensor(*this);
     gpu_tensor._gpu();
     return gpu_tensor;
 }
@@ -312,7 +316,7 @@ Tensor Tensor::gpu() const
 Tensor Tensor::reshape(std::vector<int> _shape)
 {
     assert(device == "cpu" || device == "gpu");
-    Tensor res(*this);
+    Tensor res = Tensor(*this);
     res._reshape(_shape); 
     return res;  
 }
@@ -339,7 +343,7 @@ void Tensor::_reshape(std::vector<int> _shape)
     if(auto_place != -1)
     {
         assert(element_num % new_elemant_num == 0); //"auto shape failed: element number not match"
-        _shape[auto_place] = element_num / new_elemant_num;
+        _shape[auto_place] = -element_num / new_elemant_num;
     }
     else
     {
@@ -611,16 +615,16 @@ Tensor Tensor::power(float scalar){
     return res;
 }
 
-void Tensor::operator=(const Tensor& other){
-    assert(device == other.device);
-    assert(other.shape == shape);
-    if(data == other.data)
-        return;
-    if(device == "cpu")
-        memcpy(data, other.data, element_num*sizeof(float));
-    else
-        CHECK(cudaMemcpy(data, other.data, element_num*sizeof(float), cudaMemcpyDeviceToDevice));
-}
+// void Tensor::operator=(const Tensor& other){
+//     assert(device == other.device);
+//     assert(other.shape == shape);
+//     if(data == other.data)
+//         return;
+//     if(device == "cpu")
+//         memcpy(data, other.data, element_num*sizeof(float));
+//     else
+//         CHECK(cudaMemcpy(data, other.data, element_num*sizeof(float), cudaMemcpyDeviceToDevice));
+// }
 void Tensor::operator=(float other){
     if(device == "cpu")
         fill_cpu(data, other, element_num);

@@ -486,9 +486,8 @@ class Reshape(TensorOp):
         
 
     def gradient(self, out_grad, node):
-        return Reshape(node.inputs[0].shape)(out_grad)
-        
-
+        # return Reshape(node.inputs[0].shape)(out_grad)
+        return reshape(out_grad, node.inputs[0].shape)
 
 def reshape(a, shape):
     return Reshape(shape)(a)
@@ -758,7 +757,6 @@ class Conv(TensorOp):
         grad_x, grad_weight, grad_bias = Convolution_backward(out_grad.realize_cached_data(), 
                                                             node.inputs[0].realize_cached_data(), 
                                                             node.inputs[1].realize_cached_data(), 
-                                                            node.inputs[2].realize_cached_data(), 
                                                             self.stride, self.padding
                                                             )
         return pisor(grad_x), pisor(grad_weight), pisor(grad_bias)

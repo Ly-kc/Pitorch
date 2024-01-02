@@ -77,6 +77,7 @@ class Value:
         requires_grad: Optional[bool] = None
     ):
         global TENSOR_COUNTER
+        self.tensor_number = TENSOR_COUNTER
         TENSOR_COUNTER += 1
         if requires_grad is None:
             requires_grad = any(x.requires_grad for x in inputs)

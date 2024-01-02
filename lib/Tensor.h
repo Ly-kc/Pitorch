@@ -96,7 +96,7 @@ public:
     void operator/=(float other);
 
     //only for setting data value, not changing shape etc.
-    void operator=(const Tensor& other);
+    // void operator=(const Tensor& other);
     void operator=(float other);
 
     //become the shallow copy of another tensor

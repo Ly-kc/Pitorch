@@ -65,6 +65,13 @@ def get_node_set(output_tensor):
                 node_queue.append(n)
     return node_set
 
+
+def print_compute_graph(rev_topo_node_list):
+    for node in rev_topo_node_list:
+        print([input.tensor_number for input in node.inputs], node.tensor_number, node.op)
+        
+    
+    
 def back_propgation(output_tensor, out_grad):
     
     from Pisor import pisor
@@ -85,26 +92,26 @@ def back_propgation(output_tensor, out_grad):
         
     rev_topo_node_list = list(reversed(find_topo_sort(node_list)))
     
+    for node in rev_topo_node_list:
+        node.grad = None
+    
     for onode in rev_topo_node_list:
-        #为所有的输入节点积累梯度
-        # print('aa',onode.shape)
         if(onode.requires_grad == False):
+            onode.grad = None
             continue
+        #为所有的输入节点积累梯度
         if(onode.grad is None):
             onode.grad = node_to_grad[onode][0]
         else:
             onode.grad = onode.grad + node_to_grad[onode][0]  
-    
         for grad in node_to_grad[onode][1:]:
             onode.grad = onode.grad + grad
-        # print(onode.op, onode.shape, onode.grad.shape)
+
         if(onode.grad.shape != onode.shape):
             raise Exception(f'shape not match: {onode.grad.shape} {onode.shape}')
+
         if(onode.is_leaf()): continue
         partial_gradients = onode.partial_gradients()
-        # print('ax',[partial_gradients[i].shape for i in range(len(partial_gradients))])
         for i,snode in enumerate(onode.inputs):
-            #单步偏导
             node_to_grad[snode].append(partial_gradients[i])
-
     
