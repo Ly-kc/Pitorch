@@ -1,4 +1,4 @@
-from autodiff import *
+# from autodiff import *
 from Pisor import *
 import numpy as np
 
@@ -98,7 +98,7 @@ def opti_epoch(X, y, weights, lr = 1e-5, batch=100, beta1=0.9, beta2=0.999, usin
     else:
         SGD_epoch(X, y, weights, lr = lr, batch=batch, device=device)
 
-def SGD_epoch(X, y, weights, lr = 0.1, batch=100, device='cpu'):
+def SGD_epoch(X, y, weights, lr = 0.1, batch=100, lr_decay=0.98, decay_steps=1000, device='cpu'):
     """ 
     Args:
         X : 2D input array of size (num_examples, input_dim).
@@ -107,8 +107,11 @@ def SGD_epoch(X, y, weights, lr = 0.1, batch=100, device='cpu'):
         lr (float): step size (learning rate) for SGD
         batch (int): size of SGD minibatch
     """
+    global t
+    
     data_num = X.shape[0]
     for i in range(0,data_num,batch):
+        t += 1
         batch_X = pisor.make_const(X[i:i+batch], device=device)
         batch_y = pisor.make_const(y[i:i+batch], device=device)
         pred = forward(batch_X, weights)
@@ -119,9 +122,8 @@ def SGD_epoch(X, y, weights, lr = 0.1, batch=100, device='cpu'):
             weight.data = weight - lr * weight.grad.detach()   #这步每个运算符都是重载后的
             weight.dirty = False
             weight.grad = None
-    
 
-def Adam_epoch(X, y, weights, lr = 0.1, batch=100, beta1=0.9, beta2=0.999,device='cpu'):
+def Adam_epoch(X, y, weights, lr = 0.1, batch=100, beta1=0.9, beta2=0.999, lr_decay=0.98, decay_steps=1000, device='cpu'):
     """ 
     Args:
         X : 2D input array of size (num_examples, input_dim).
@@ -131,9 +133,6 @@ def Adam_epoch(X, y, weights, lr = 0.1, batch=100, beta1=0.9, beta2=0.999,device
         batch (int): size of SGD minibatch
         beta1 (float): smoothing parameter for first order momentum
         beta2 (float): smoothing parameter for second order momentum
-
-    Returns:
-        None
     """
     global t,ms,vs
     
@@ -158,8 +157,7 @@ def Adam_epoch(X, y, weights, lr = 0.1, batch=100, beta1=0.9, beta2=0.999,device
             weight.data = weight + lr * update_amount
             weight.dirty = False
             weight.grad = None
-
-    return t
+            
 
 def loss_err(h,y):
     """ 
@@ -194,7 +192,7 @@ def train_nn(X_tr, y_tr, X_te, y_te, hidden_dim = 500,
 if __name__ == "__main__":
     X_tr, y_tr, X_te, y_te = parse_mnist() 
     ## using SGD optimizer 
-    train_nn(X_tr, y_tr, X_te, y_te, hidden_dim=128, epochs=400, lr = 8e-5, batch=32, beta1=0.9, beta2=0.999, using_adam=False, device='gpu')
+    # train_nn(X_tr, y_tr, X_te, y_te, hidden_dim=128, epochs=400, lr = 8e-5, batch=32, beta1=0.9, beta2=0.999, using_adam=False, device='gpu')
     ## using Adam optimizer
-    # train_nn(X_tr, y_tr, X_te, y_te, hidden_dim=128, epochs=200, lr = 1e-2, batch=64, beta1=0.9, beta2=0.999, using_adam=True, device='gpu')
+    train_nn(X_tr, y_tr, X_te, y_te, hidden_dim=128, epochs=200, lr = 1e-2, batch=64, beta1=0.9, beta2=0.999, using_adam=True, device='gpu')
     

@@ -2,6 +2,49 @@
 #include "gpu_func.h"
 #include "utils.h"
 
+class CublasHandleCreator
+{
+    cublasHandle_t* cublas_handle;
+public:
+    CublasHandleCreator()
+    {
+        cublas_handle = NULL;
+    }
+    ~CublasHandleCreator()
+    {
+        if(cublas_handle != NULL)
+        {
+            cublasStatus_t status = cublasDestroy(*cublas_handle);
+            if(status != CUBLAS_STATUS_SUCCESS){
+                    std::cout << "cublas destroy error1" << std::endl;
+                    std::cout << status << std::endl;
+                    exit(0);
+            }
+        }
+    }
+    void create_handle()
+    {
+        cublas_handle = new cublasHandle_t;
+        // cublasHandle_t handle;
+        cublasStatus_t status = cublasCreate(cublas_handle);
+        if(status != CUBLAS_STATUS_SUCCESS){
+                std::cout << "cublas creation error1" << std::endl;
+                std::cout << status << std::endl;
+                exit(0);
+        }
+    }
+    cublasHandle_t& operator()()
+    {
+        if(cublas_handle == NULL){
+            create_handle();
+        }
+
+        return *cublas_handle;
+    }
+};
+
+CublasHandleCreator cublasHandle;
+
 class CUDAMempoolAttributeSetter {
     public:
         CUDAMempoolAttributeSetter() {

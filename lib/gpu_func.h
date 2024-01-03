@@ -16,35 +16,8 @@ inline int CudaGetBlocks(const int N)
 } 
 
 
-class CublasHandleCreator
-{
-    cublasHandle_t cublas_handle;
-public:
-    CublasHandleCreator()
-    {
-        cublasStatus_t status = cublasCreate(&cublas_handle);
-        if(status != CUBLAS_STATUS_SUCCESS){
-                std::cout << "cublas creation error1" << std::endl;
-                std::cout << status << std::endl;
-                exit(0);
-        }
-    }
-    ~CublasHandleCreator()
-    {
-        cublasStatus_t status = cublasDestroy(cublas_handle);
-        if(status != CUBLAS_STATUS_SUCCESS){
-                std::cout << "cublas destroy error1" << std::endl;
-                std::cout << status << std::endl;
-                exit(0);
-        }
-    }
-    cublasHandle_t& operator()()
-    {
-        return cublas_handle;
-    }
-};
-
-static CublasHandleCreator cublasHandle;
+class CublasHandleCreator;
+extern CublasHandleCreator cublasHandle;
 
 
 void cout_gpu(const float* src, int n);
