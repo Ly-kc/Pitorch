@@ -71,7 +71,9 @@ def print_compute_graph(rev_topo_node_list):
         print([input.tensor_number for input in node.inputs], node.tensor_number, node.op)
         
     
-    
+'''
+only support one order of gradient now...
+'''
 def back_propgation(output_tensor, out_grad):
     
     from Pisor import pisor
@@ -92,6 +94,9 @@ def back_propgation(output_tensor, out_grad):
         
     rev_topo_node_list = list(reversed(find_topo_sort(node_list)))
     
+    '''
+    Without the code below, TENSOR_NUMBER will burst. How magical...
+    '''
     for node in rev_topo_node_list:
         node.grad = None
     

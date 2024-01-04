@@ -121,6 +121,7 @@ class pisor(Value):
         elif(isinstance(data, list) or isinstance(data, tuple)):
             data = raw_pisor(np.array(data), device=device)
         elif(isinstance(data, pisor)):
+            assert(data.device == device)
             data = data.realize_cached_data()
         elif(not isinstance(data, raw_pisor)):
             raise Exception('make_const data type error')

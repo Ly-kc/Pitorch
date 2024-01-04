@@ -1,15 +1,12 @@
-# from autodiff import *
 from Pisor import *
+from optimizer import SGD, Adam
+
 import numpy as np
 
 from torchvision import datasets
 from torchvision.transforms import ToTensor, Lambda
 import matplotlib.pyplot as plt
 import tqdm
-
-t = 0
-ms:list[pisor] = []
-vs:list[pisor] = []
 
 def parse_mnist(flatten = True):
     training_data = datasets.MNIST(
@@ -25,9 +22,12 @@ def parse_mnist(flatten = True):
         download=True,
         transform=ToTensor()
     )# ( ((1,28,28), int),....)
-    
-    X_tr = np.array([i[0].numpy() for i in training_data])
-    X_te = np.array([i[0].numpy() for i in test_data])
+    if(flatten):
+        X_tr = np.array([i[0].numpy().reshape(-1) for i in training_data])  #(n,784)
+        X_te = np.array([i[0].numpy().reshape(-1) for i in test_data])
+    else:
+        X_tr = np.array([i[0].numpy() for i in training_data])
+        X_te = np.array([i[0].numpy() for i in test_data])
     y_tr = np.array([i[1] for i in training_data])  #(n)
     y_te = np.array([i[1] for i in test_data])
         
@@ -92,71 +92,16 @@ def softmax_loss(Z:pisor, y:pisor):
     return loss    
      
 
-def opti_epoch(X, y, weights, lr = 1e-5, batch=100, beta1=0.9, beta2=0.999, using_adam=False, device='cpu'):
-    if using_adam:
-        Adam_epoch(X, y, weights,  lr = lr, batch=batch, beta1=beta1, beta2=beta2, device=device)
-    else:
-        SGD_epoch(X, y, weights, lr = lr, batch=batch, device=device)
-
-def SGD_epoch(X, y, weights, lr = 0.1, batch=100, lr_decay=0.98, decay_steps=1000, device='cpu'):
-    """ 
-    Args:
-        X : 2D input array of size (num_examples, input_dim).
-        y : 1D class label array of size (num_examples,)
-        weights : list of 2D array of layers weights, of shape [(input_dim, hidden_dim)]
-        lr (float): step size (learning rate) for SGD
-        batch (int): size of SGD minibatch
-    """
-    global t
-    
+def opti_epoch(X, y, weights, optimizer, batch):
+    device = weights[0].device
     data_num = X.shape[0]
     for i in range(0,data_num,batch):
-        t += 1
         batch_X = pisor.make_const(X[i:i+batch], device=device)
         batch_y = pisor.make_const(y[i:i+batch], device=device)
         pred = forward(batch_X, weights)
         loss = softmax_loss(pred, batch_y)
         loss.backward()
-        # print(loss.tensor_number)
-        for weight in weights:
-            weight.data = weight - lr * weight.grad.detach()   #这步每个运算符都是重载后的
-            weight.dirty = False
-            weight.grad = None
-
-def Adam_epoch(X, y, weights, lr = 0.1, batch=100, beta1=0.9, beta2=0.999, lr_decay=0.98, decay_steps=1000, device='cpu'):
-    """ 
-    Args:
-        X : 2D input array of size (num_examples, input_dim).
-        y : 1D class label array of size (num_examples,)
-        weights : list of 2D array of layers weights, of shape [(input_dim, hidden_dim)]
-        lr (float): step size (learning rate) for SGD
-        batch (int): size of SGD minibatch
-        beta1 (float): smoothing parameter for first order momentum
-        beta2 (float): smoothing parameter for second order momentum
-    """
-    global t,ms,vs
-    
-    data_num = X.shape[0]
-    for i in range(0,data_num,batch):
-        t += 1
-        batch_X = pisor.make_const(X[i:i+batch], device=device)
-        batch_y = pisor.make_const(y[i:i+batch], device=device)
-        pred = forward(batch_X, weights)
-        loss = softmax_loss(pred, batch_y)
-        loss.backward()
-        for i in range(len(weights)):
-            weight = weights[i]
-            grad = weight.grad.detach()
-            # print(grad.numpy())
-            ms[i] = beta1 * ms[i] + (1 - beta1) * grad
-            vs[i] = beta2 * vs[i] + (1 - beta2) * grad**2
-            m_hat = ms[i] / (1 - beta1**(t))
-            v_hat = vs[i] / (1 - beta2**(t))
-            update_amount = -lr * m_hat / ((v_hat**0.5) + 1e-8)
-            # print(update_amount.numpy())
-            weight.data = weight + lr * update_amount
-            weight.dirty = False
-            weight.grad = None
+        optimizer.step()
             
 
 def loss_err(h,y):
@@ -170,29 +115,29 @@ def loss_err(h,y):
     return loss, error
 
 def train_nn(X_tr, y_tr, X_te, y_te, hidden_dim = 500,
-             epochs=10, lr=0.5, batch=100, beta1=0.9, beta2=0.999, using_adam=False, device='cpu'):
+             epochs=10, lr=0.5, batch=100, lr_decay=0.99, decay_steps=1000, momentum=0.9, beta1=0.9, beta2=0.999, using_adam=False, device='cpu'):
     
     n, k = X_tr.shape[1], y_tr.max() + 1
     print('start training on '+ device)
     np.random.seed(0)
     weights = set_structure(n, k, device=device)
-    #X,y: numpy array
-    #weights: list of Tensor
+    if(using_adam):
+        optimizer = Adam(weights, lr=lr, lr_decay=lr_decay, decay_steps=decay_steps, beta1=beta1, beta2=beta2)
+    else:
+        optimizer = SGD(weights, lr=lr, lr_decay=lr_decay, decay_steps=decay_steps, momentum=momentum)
+    
     print("|  Epoch | Test Loss | Test Err |")
     for epoch in tqdm.tqdm(range(epochs)):
-        opti_epoch(X_tr, y_tr, weights, lr=lr, batch=batch, beta1=beta1, beta2=beta2, using_adam=using_adam,device=device)
-        # train_loss, train_err = loss_err(forward(pisor.make_const(X_tr,device=device), weights), pisor.make_const(y_tr, device=device))
+        opti_epoch(X_tr, y_tr, weights, optimizer, batch)
         test_loss, test_err = loss_err(forward(pisor.make_const(X_te,device=device), weights), pisor.make_const(y_te, device=device))
-        # print("|  {:>4} |    {:.5f} |   {:.5f} |   {:.5f} |  {:.5f} |"\
-        #       .format(epoch, train_loss[0], train_err, test_loss[0], test_err))
         print("|  {:>4}  |   {:.5f} |  {:.5f} |"\
               .format(epoch, test_loss[0], test_err))
 
 
 if __name__ == "__main__":
-    X_tr, y_tr, X_te, y_te = parse_mnist() 
+    X_tr, y_tr, X_te, y_te = parse_mnist(flatten=False) 
     ## using SGD optimizer 
-    # train_nn(X_tr, y_tr, X_te, y_te, hidden_dim=128, epochs=400, lr = 8e-5, batch=32, beta1=0.9, beta2=0.999, using_adam=False, device='gpu')
+    # train_nn(X_tr, y_tr, X_te, y_te, hidden_dim=128, epochs=400, lr = 8e-5, lr_decay=1., decay_steps=10000, momentum=0, batch=32, using_adam=False, device='gpu')
     ## using Adam optimizer
-    train_nn(X_tr, y_tr, X_te, y_te, hidden_dim=128, epochs=200, lr = 1e-2, batch=64, beta1=0.9, beta2=0.999, using_adam=True, device='gpu')
+    train_nn(X_tr, y_tr, X_te, y_te, epochs=200, lr = 1e-2, batch=64, lr_decay=1, decay_steps=10000, beta1=0.9, beta2=0.999, using_adam=True, device='gpu')
     

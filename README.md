@@ -1,6 +1,10 @@
 # Pitorch
 The first AI framewrok designed by myself, which is the final project of class "Programming in Artificial Intelligence"
 
+## TODO :pencil2:
+- [ ] Line graph for loss 
+- [ ] Accelerate training
+
 ## Code structure
 The code is orgnized as follows:
 ```bash
@@ -24,6 +28,7 @@ The code is orgnized as follows:
 │   ├── basic_operator.py      # basic elements for Computinng Graph
 │   ├── Pisor.py               # difination of Pisor and Operators
 │   ├── autodiff.py            # gradient back propagation
+│   ├── optimizer.py           # optimizer zone 
 │   ├── Unittest.py            # validate C++/Cuda operators
 │   ├── test_forward.py        
 │   ├── test_backward.py       
@@ -55,7 +60,7 @@ python train_conv_net.py
 # train fully connected network
 python train_fc_net.py
 ```
-You can tweak hyper-parameters as well as change device on the bottom of training script. 
+On the bottom of training script, you can tweak hyper-parameters, select optimizers as well as change device. 
 
 Here is an example of training log:
 <div align=center><img src="./assets/train_on_minist.png" alt="Image" width="80%"></div>
