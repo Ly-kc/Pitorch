@@ -30,7 +30,8 @@ class SGD(optimizer):
             if(self.t == 1):
                 self.vel.append(weight.grad.detach())
             else:
-                self.vel[i] = self.momentum*self.vel[i] + (1-self.momentum)*weight.grad.detach()
+                # self.vel[i] = self.momentum*self.vel[i] + (1-self.momentum)*weight.grad.detach()
+                self.vel[i] = self.momentum*self.vel[i] + weight.grad.detach()
             weight.data = weight - self.lr * self.vel[i]   #这步每个运算符都是重载后的
             weight.dirty = False
             

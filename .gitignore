@@ -3,5 +3,6 @@ __pycache__
 /lib/*.egg-info
 /lib/build
 /lib/*.so
-
+*.png
+*.jpg
 *.nsys-rep

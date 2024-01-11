@@ -2,7 +2,7 @@
 The first AI framewrok designed by myself, which is the final project of class "Programming in Artificial Intelligence"
 
 ## TODO :pencil2:
-- [ ] Line graph for loss 
+- [ ] Data preprocessing
 - [ ] Accelerate training
 
 ## Code structure
